@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmAddStationBtn = document.getElementById('confirm-add-station-btn');
     const stationNameInput = document.getElementById('station-name-input');
     const stationRateInput = document.getElementById('station-rate-input');
+    const stationDurationInput = document.getElementById('station-duration-input');
     const themeToggle = document.getElementById('theme-toggle');
     const productsList = document.getElementById('products-list');
     const addProductBtn = document.getElementById('add-product-btn');
@@ -14,11 +15,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const productPriceInput = document.getElementById('product-price-input');
     const invoiceModal = document.getElementById('invoice-modal');
     const invoiceDetails = document.getElementById('invoice-details');
+    const payCashBtn = document.getElementById('pay-cash-btn');
+    const payCardBtn = document.getElementById('pay-card-btn');
+    const reportBtn = document.getElementById('report-btn');
+    const reportModal = document.getElementById('report-modal');
+    const statsTodayRevenue = document.getElementById('stats-today-revenue');
+    const statsTotalRevenue = document.getElementById('stats-total-revenue');
+    const statsTotalTransactions = document.getElementById('stats-total-transactions');
+    const historyTableBody = document.getElementById('history-table-body');
 
 
     // --- State ---
     let stations = [];
     let products = [];
+    let history = [];
     let nextStationId = 1;
     let nextProductId = 1;
 
@@ -33,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { timerInterval, ...stationData } = s;
             return stationData;
         });
-        localStorage.setItem('gameNetState', JSON.stringify({ stations: stationsToSave, products, nextStationId, nextProductId }));
+        localStorage.setItem('gameNetState', JSON.stringify({ stations: stationsToSave, products, history, nextStationId, nextProductId }));
     }
 
     /**
@@ -45,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const state = JSON.parse(savedState);
             stations = state.stations || [];
             products = state.products || [];
+            history = state.history || [];
             nextStationId = state.nextStationId || 1;
             nextProductId = state.nextProductId || 1;
 
@@ -103,19 +114,45 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input type="text" class="edit-station-name" value="${station.name}" placeholder="نام سیستم">
                         <input type="number" class="edit-station-rate" value="${station.rate}" placeholder="نرخ ساعتی (تومان)">
                         <div class="controls">
-                            <button class="save-station-btn">ذخیره</button>
-                            <button class="cancel-edit-btn">لغو</button>
+                            <button class="save-station-btn" title="ذخیره"><i class="fas fa-save"></i></button>
+                            <button class="cancel-edit-btn" title="لغو"><i class="fas fa-times"></i></button>
                         </div>
                     </div>
                 `;
             } else {
                 // --- DISPLAY MODE ---
-                const elapsedTime = station.startTime ? Date.now() - station.startTime + station.elapsedTime : station.elapsedTime;
-                const formattedTime = formatTime(elapsedTime);
-                const totalCost = calculateTotalCost(station);
+                let timeToDisplay = 0;
+                let isTimeUp = false;
+
+                if (station.isCountdown) {
+                    const elapsedTime = station.startTime ? Date.now() - station.startTime : 0;
+                    timeToDisplay = station.duration - station.elapsedTime - elapsedTime;
+                    if (timeToDisplay < 0) timeToDisplay = 0;
+
+                    if (station.startTime && timeToDisplay === 0) {
+                        isTimeUp = true;
+                        // Automatically stop the timer when time is up
+                        stopTimer(station, true);
+                    }
+
+                    if (timeToDisplay > 0 && timeToDisplay < 5 * 60 * 1000) { // 5 minutes warning
+                        stationCard.classList.add('warning');
+                    }
+                    if (isTimeUp) {
+                        stationCard.classList.add('times-up');
+                    }
+
+                } else {
+                    timeToDisplay = station.startTime ? Date.now() - station.startTime + station.elapsedTime : station.elapsedTime;
+                }
+
+                const formattedTime = formatTime(timeToDisplay);
+                const timeCost = calculateTimeCost(station);
+                const productsCost = station.products.reduce((total, p) => total + p.price, 0);
+                const totalCost = timeCost + productsCost;
 
                 stationCard.innerHTML = `
-                    <h3>${station.name}</h3>
+                    <h3>${station.name} ${station.isCountdown ? '(پیش‌پرداخت)' : ''}</h3>
                     <p><small>نرخ: ${station.rate.toLocaleString('fa-IR')} تومان/ساعت</small></p>
                     <div class="time-display">${formattedTime}</div>
                     <div class="cost-display">${totalCost.toLocaleString('fa-IR')} تومان</div>
@@ -145,21 +182,25 @@ document.addEventListener('DOMContentLoaded', () => {
     function addStation() {
         const name = stationNameInput.value.trim();
         const rate = parseFloat(stationRateInput.value);
+        const duration = parseInt(stationDurationInput.value, 10);
 
-        if (name && !isNaN(rate) && rate > 0) {
+        if (name && !isNaN(rate) && rate >= 0) {
             const newStation = {
                 id: nextStationId++,
                 name,
                 rate,
-                startTime: null, // timestamp when timer starts
-                elapsedTime: 0, // ms
+                startTime: null,
+                elapsedTime: 0,
                 timerInterval: null,
-                products: [], // Array of product objects
+                products: [],
                 isEditing: false,
+                isCountdown: !isNaN(duration) && duration > 0,
+                duration: (!isNaN(duration) && duration > 0) ? duration * 60 * 1000 : 0,
             };
             stations.push(newStation);
             stationNameInput.value = '';
             stationRateInput.value = '';
+            stationDurationInput.value = '';
             hideModal(addStationModal);
             renderStations();
             saveState();
@@ -262,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (e.target.classList.contains('add-product-to-station-btn')) {
             openAddProductToStationModal(station);
         } else if (e.target.classList.contains('invoice-btn')) {
-            showInvoice(station);
+            generateInvoice(station);
         } else if (e.target.classList.contains('delete-station-btn')) {
             deleteStation(stationId);
         } else if (e.target.classList.contains('edit-station-btn')) {
@@ -344,16 +385,25 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Stops the timer for a station
      * @param {object} station
+     * @param {boolean} silent - If true, won't re-render, to prevent infinite loops.
      */
-    function stopTimer(station) {
+    function stopTimer(station, silent = false) {
         if (!station.startTime) return; // Already stopped
 
         clearInterval(station.timerInterval);
         station.elapsedTime += Date.now() - station.startTime;
+
+        if (station.isCountdown && station.elapsedTime > station.duration) {
+            station.elapsedTime = station.duration;
+        }
+
         station.startTime = null;
         station.timerInterval = null;
-        renderStations();
-        saveState();
+
+        if (!silent) {
+            renderStations();
+            saveState();
+        }
     }
 
     /**
@@ -388,30 +438,22 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {object} station
      * @returns {number}
      */
-    function calculateTotalCost(station) {
-        const elapsedTime = station.startTime ? Date.now() - station.startTime + station.elapsedTime : station.elapsedTime;
-        const timeCost = (elapsedTime / (1000 * 60 * 60)) * station.rate;
-        const productsCost = station.products.reduce((total, p) => total + p.price, 0);
-        return Math.floor(timeCost + productsCost);
-    }
-
     /**
-     * Shows the final invoice for a station and resets it.
+     * Generates and shows the final invoice for a station.
      * @param {object} station
      */
-    function showInvoice(station) {
-        // Stop the timer if it's running
+    function generateInvoice(station) {
         if (station.startTime) {
             stopTimer(station);
         }
 
-        const timeCost = Math.floor((station.elapsedTime / (1000 * 60 * 60)) * station.rate);
+        const timeCost = calculateTimeCost(station);
         const productsCost = station.products.reduce((total, p) => total + p.price, 0);
         const totalCost = timeCost + productsCost;
 
         invoiceDetails.innerHTML = `
             <h4>فاکتور برای: ${station.name}</h4>
-            <p>مدت زمان استفاده: ${formatTime(station.elapsedTime)}</p>
+            <p>مدت زمان استفاده: ${formatTime(station.isCountdown ? station.duration : station.elapsedTime)}</p>
             <p>هزینه زمان: ${timeCost.toLocaleString('fa-IR')} تومان</p>
             <hr>
             <h5>محصولات خریداری شده:</h5>
@@ -422,13 +464,57 @@ document.addEventListener('DOMContentLoaded', () => {
             <hr>
             <h3>مبلغ نهایی: ${totalCost.toLocaleString('fa-IR')} تومان</h3>
         `;
-        showModal(invoiceModal);
 
-        // Reset the station after showing the invoice
+        // Store the current station ID on the modal for the payment handlers
+        invoiceModal.dataset.stationId = station.id;
+        showModal(invoiceModal);
+    }
+
+    /**
+     * Finalizes the transaction, saves it to history, and resets the station.
+     * @param {number} stationId
+     * @param {string} paymentMethod
+     */
+    function finalizeTransaction(stationId, paymentMethod) {
+        const station = stations.find(s => s.id === stationId);
+        if (!station) return;
+
+        const timeCost = calculateTimeCost(station);
+        const productsCost = station.products.reduce((total, p) => total + p.price, 0);
+
+        const historyRecord = {
+            stationName: station.name,
+            date: new Date().toISOString(),
+            timeCost,
+            productsCost,
+            totalCost: timeCost + productsCost,
+            paymentMethod,
+            products: station.products,
+            duration: station.isCountdown ? station.duration : station.elapsedTime
+        };
+        history.push(historyRecord);
+
+        // Reset the station
         station.elapsedTime = 0;
         station.products = [];
+        station.startTime = null;
+        if (station.isCountdown) {
+            // Reset countdown timer for next use
+        }
+
+        hideModal(invoiceModal);
         renderStations();
         saveState();
+    }
+
+    function calculateTimeCost(station) {
+        let timeForCost = 0;
+        if (station.isCountdown) {
+            timeForCost = station.duration;
+        } else {
+            timeForCost = station.startTime ? Date.now() - station.startTime + station.elapsedTime : station.elapsedTime;
+        }
+        return Math.floor((timeForCost / (1000 * 60 * 60)) * station.rate);
     }
 
 
@@ -444,6 +530,75 @@ document.addEventListener('DOMContentLoaded', () => {
             const productId = parseInt(e.target.dataset.id);
             deleteProduct(productId);
         }
+    });
+    invoiceModal.addEventListener('click', (e) => {
+        const stationId = parseInt(invoiceModal.dataset.stationId);
+        if (e.target.id === 'pay-cash-btn') {
+            finalizeTransaction(stationId, 'cash');
+        } else if (e.target.id === 'pay-card-btn') {
+            finalizeTransaction(stationId, 'card');
+        }
+    });
+
+    /**
+     * Processes history and renders the report modal
+     */
+    function renderReport() {
+        // Stats
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+        const todayHistory = history.filter(item => item.date >= todayStart);
+
+        const todayRevenue = todayHistory.reduce((sum, item) => sum + item.totalCost, 0);
+        const totalRevenue = history.reduce((sum, item) => sum + item.totalCost, 0);
+
+        statsTodayRevenue.textContent = `${todayRevenue.toLocaleString('fa-IR')} تومان`;
+        statsTotalRevenue.textContent = `${totalRevenue.toLocaleString('fa-IR')} تومان`;
+        statsTotalTransactions.textContent = history.length.toLocaleString('fa-IR');
+
+        // History Table
+        historyTableBody.innerHTML = '';
+        [...history].reverse().forEach(item => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${item.stationName}</td>
+                <td>${new Date(item.date).toLocaleString('fa-IR')}</td>
+                <td>${formatTime(item.duration)}</td>
+                <td>${item.paymentMethod === 'cash' ? 'نقدی' : 'کارت'}</td>
+                <td>${item.totalCost.toLocaleString('fa-IR')} تومان</td>
+            `;
+            historyTableBody.appendChild(row);
+        });
+    }
+
+
+    // --- Event Listeners ---
+    themeToggle.addEventListener('change', toggleTheme);
+    addStationBtn.addEventListener('click', () => showModal(addStationModal));
+    closeModalBtns.forEach(btn => btn.addEventListener('click', (e) => hideModal(e.target.closest('.modal'))));
+    confirmAddStationBtn.addEventListener('click', addStation);
+    stationsContainer.addEventListener('click', handleStationClick);
+    addProductBtn.addEventListener('click', addProduct);
+    productsList.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-product-btn')) {
+            const productId = parseInt(e.target.dataset.id);
+            deleteProduct(productId);
+        }
+    });
+    payCashBtn.addEventListener('click', () => {
+        const stationId = parseInt(invoiceModal.dataset.stationId);
+        if (stationId) finalizeTransaction(stationId, 'cash');
+    });
+
+    payCardBtn.addEventListener('click', () => {
+        const stationId = parseInt(invoiceModal.dataset.stationId);
+        if (stationId) finalizeTransaction(stationId, 'card');
+    });
+
+    reportBtn.addEventListener('click', () => {
+        renderReport();
+        showModal(reportModal);
     });
 
     // --- Initial Load & Render ---

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مدیریت گیم‌نت</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
 </head>
@@ -12,6 +13,7 @@
         <header>
             <h1>مدیریت گیم‌نت</h1>
             <div class="controls">
+                <button id="report-btn">گزارشات</button>
                 <button id="add-station-btn">افزودن سیستم جدید</button>
                 <div class="theme-switcher">
                     <label for="theme-toggle">حالت تاریک</label>
@@ -48,6 +50,7 @@
             <h2>افزودن سیستم جدید</h2>
             <input type="text" id="station-name-input" placeholder="نام سیستم (مثلا: PC 1)">
             <input type="number" id="station-rate-input" placeholder="نرخ هر ساعت (تومان)">
+            <input type="number" id="station-duration-input" placeholder="مدت زمان (دقیقه) - اختیاری">
             <button id="confirm-add-station-btn">تایید</button>
         </div>
     </div>
@@ -60,7 +63,48 @@
             <div id="invoice-details">
                 <!-- Invoice details will be populated here -->
             </div>
-            <button id="print-invoice-btn">چاپ فاکتور</button>
+            <div class="invoice-actions">
+                <button id="pay-cash-btn" class="payment-btn">پرداخت نقدی</button>
+                <button id="pay-card-btn" class="payment-btn">پرداخت با کارت</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="modal" style="display:none;">
+        <div class="modal-content large">
+            <span class="close-btn">&times;</span>
+            <h2>گزارشات و آمار</h2>
+            <div class="report-stats">
+                <div class="stat-box">
+                    <h4>درآمد کل (امروز)</h4>
+                    <p id="stats-today-revenue">۰ تومان</p>
+                </div>
+                <div class="stat-box">
+                    <h4>درآمد کل (مجموع)</h4>
+                    <p id="stats-total-revenue">۰ تومان</p>
+                </div>
+                <div class="stat-box">
+                    <h4>تعداد کل تراکنش‌ها</h4>
+                    <p id="stats-total-transactions">۰</p>
+                </div>
+            </div>
+            <div class="report-table-container">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>سیستم</th>
+                            <th>تاریخ</th>
+                            <th>مدت زمان</th>
+                            <th>نحوه پرداخت</th>
+                            <th>مبلغ کل</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body">
+                        <!-- History rows will be injected here -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
