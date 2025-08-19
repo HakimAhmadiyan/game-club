@@ -96,27 +96,45 @@ document.addEventListener('DOMContentLoaded', () => {
             stationCard.className = 'station-card glass';
             stationCard.dataset.id = station.id;
 
-            const elapsedTime = station.startTime ? Date.now() - station.startTime + station.elapsedTime : station.elapsedTime;
-            const formattedTime = formatTime(elapsedTime);
-            const totalCost = calculateTotalCost(station);
+            if (station.isEditing) {
+                // --- EDIT MODE ---
+                stationCard.innerHTML = `
+                    <div class="station-edit-view">
+                        <input type="text" class="edit-station-name" value="${station.name}" placeholder="نام سیستم">
+                        <input type="number" class="edit-station-rate" value="${station.rate}" placeholder="نرخ ساعتی (تومان)">
+                        <div class="controls">
+                            <button class="save-station-btn">ذخیره</button>
+                            <button class="cancel-edit-btn">لغو</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // --- DISPLAY MODE ---
+                const elapsedTime = station.startTime ? Date.now() - station.startTime + station.elapsedTime : station.elapsedTime;
+                const formattedTime = formatTime(elapsedTime);
+                const totalCost = calculateTotalCost(station);
 
-            stationCard.innerHTML = `
-                <h3>${station.name}</h3>
-                <div class="time-display">${formattedTime}</div>
-                <div class="cost-display">${totalCost.toLocaleString('fa-IR')} تومان</div>
-                <div class="station-products">
-                    <small>محصولات خریداری شده:</small>
-                    <ul class="purchased-products-list">
-                        ${station.products.map(p => `<li>${p.name} (${p.price.toLocaleString('fa-IR')} تومان)</li>`).join('') || '<li>-</li>'}
-                    </ul>
-                </div>
-                <div class="controls">
-                    <button class="start-btn" ${station.startTime ? 'disabled' : ''}>شروع</button>
-                    <button class="stop-btn" ${!station.startTime ? 'disabled' : ''}>توقف</button>
-                    <button class="add-product-to-station-btn">افزودن محصول</button>
-                    <button class="invoice-btn">صدور فاکتور</button>
-                </div>
-            `;
+                stationCard.innerHTML = `
+                    <h3>${station.name}</h3>
+                    <p><small>نرخ: ${station.rate.toLocaleString('fa-IR')} تومان/ساعت</small></p>
+                    <div class="time-display">${formattedTime}</div>
+                    <div class="cost-display">${totalCost.toLocaleString('fa-IR')} تومان</div>
+                    <div class="station-products">
+                        <small>محصولات خریداری شده:</small>
+                        <ul class="purchased-products-list">
+                            ${station.products.map(p => `<li>${p.name} (${p.price.toLocaleString('fa-IR')} تومان)</li>`).join('') || '<li>-</li>'}
+                        </ul>
+                    </div>
+                    <div class="controls">
+                        <button class="start-btn" ${station.startTime ? 'disabled' : ''}>شروع</button>
+                        <button class="stop-btn" ${!station.startTime ? 'disabled' : ''}>توقف</button>
+                        <button class="add-product-to-station-btn">افزودن محصول</button>
+                        <button class="invoice-btn">صدور فاکتور</button>
+                        <button class="edit-station-btn">ویرایش</button>
+                        <button class="delete-station-btn">حذف</button>
+                    </div>
+                `;
+            }
             stationsContainer.appendChild(stationCard);
         });
     }
@@ -137,6 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 elapsedTime: 0, // ms
                 timerInterval: null,
                 products: [], // Array of product objects
+                isEditing: false,
             };
             stations.push(newStation);
             stationNameInput.value = '';
@@ -162,8 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const productItem = document.createElement('div');
             productItem.className = 'product-item';
             productItem.innerHTML = `
-                <span>${product.name}</span>
-                <span>${product.price.toLocaleString('fa-IR')} تومان</span>
+                <span class="product-info">${product.name} - ${product.price.toLocaleString('fa-IR')} تومان</span>
+                <button class="delete-product-btn" data-id="${product.id}">&times;</button>
             `;
             productsList.appendChild(productItem);
         });
@@ -244,6 +263,66 @@ document.addEventListener('DOMContentLoaded', () => {
             openAddProductToStationModal(station);
         } else if (e.target.classList.contains('invoice-btn')) {
             showInvoice(station);
+        } else if (e.target.classList.contains('delete-station-btn')) {
+            deleteStation(stationId);
+        } else if (e.target.classList.contains('edit-station-btn')) {
+            station.isEditing = true;
+            renderStations();
+        } else if (e.target.classList.contains('cancel-edit-btn')) {
+            station.isEditing = false;
+            renderStations();
+        } else if (e.target.classList.contains('save-station-btn')) {
+            saveStationEdits(stationId, stationCard);
+        }
+    }
+
+    /**
+     * Saves the edited data for a station
+     * @param {number} stationId
+     * @param {HTMLElement} stationCard
+     */
+    function saveStationEdits(stationId, stationCard) {
+        const station = stations.find(s => s.id === stationId);
+        const newName = stationCard.querySelector('.edit-station-name').value.trim();
+        const newRate = parseFloat(stationCard.querySelector('.edit-station-rate').value);
+
+        if (newName && !isNaN(newRate) && newRate > 0) {
+            station.name = newName;
+            station.rate = newRate;
+            station.isEditing = false;
+            renderStations();
+            saveState();
+        } else {
+            alert('لطفا نام و نرخ ساعتی معتبر وارد کنید.');
+        }
+    }
+
+    /**
+     * Deletes a station after confirmation
+     * @param {number} stationId
+     */
+    function deleteStation(stationId) {
+        if (confirm('آیا از حذف این سیستم مطمئن هستید؟ این عمل قابل بازگشت نیست.')) {
+            stations = stations.filter(s => s.id !== stationId);
+            renderStations();
+            saveState();
+        }
+    }
+
+    /**
+     * Deletes a product after confirmation
+     * @param {number} productId
+     */
+    function deleteProduct(productId) {
+        if (confirm('آیا از حذف این محصول مطمئن هستید؟')) {
+            products = products.filter(p => p.id !== productId);
+            // Also remove this product from any station's purchased list
+            stations.forEach(station => {
+                station.products = station.products.filter(p => p.id !== productId);
+            });
+            renderProducts();
+            renderStations(); // Re-render stations in case a product was removed from them
+            saveState();
         }
     }
 
@@ -360,6 +439,12 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmAddStationBtn.addEventListener('click', addStation);
     stationsContainer.addEventListener('click', handleStationClick);
     addProductBtn.addEventListener('click', addProduct);
+    productsList.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-product-btn')) {
+            const productId = parseInt(e.target.dataset.id);
+            deleteProduct(productId);
+        }
+    });
 
     // --- Initial Load & Render ---
     loadState();

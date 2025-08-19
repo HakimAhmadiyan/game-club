@@ -156,8 +156,35 @@ header {
     margin-bottom: 15px;
 }
 
+.station-card .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+}
+
 .station-card .controls button {
-    margin: 0 5px;
+    margin: 0; /* Remove margin as gap is used now */
+}
+
+.delete-station-btn {
+    background-color: #dc3545 !important;
+}
+.delete-station-btn:hover {
+    background-color: #c82333 !important;
+}
+
+.station-edit-view {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.station-edit-view input {
+    width: 80%;
+    margin: 0 auto;
 }
 
 /* --- Sidebar (Products) --- */
@@ -183,6 +210,21 @@ header {
 
 #products-list .product-item:hover {
     background-color: rgba(0,0,0,0.05);
+}
+
+.delete-product-btn {
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 0 10px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.delete-product-btn:hover {
+    color: #a01c28;
 }
 
 body.dark-mode #products-list .product-item:hover {
