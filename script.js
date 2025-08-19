@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let history = [];
     let nextStationId = 1;
     let nextProductId = 1;
+    let isFinalizing = false; // Guard to prevent double-firing transactions
 
     // --- Functions ---
 
@@ -104,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         stationsContainer.innerHTML = '';
         stations.forEach(station => {
             const stationCard = document.createElement('div');
-            stationCard.className = 'station-card glass';
+            stationCard.className = 'station-card';
             stationCard.dataset.id = station.id;
 
             if (station.isEditing) {
@@ -151,10 +152,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const productsCost = station.products.reduce((total, p) => total + p.price, 0);
                 const totalCost = timeCost + productsCost;
 
+                const progressPercentage = station.isCountdown ? (timeToDisplay / station.duration) * 100 : 0;
+
                 stationCard.innerHTML = `
                     <h3>${station.name} ${station.isCountdown ? '(پیش‌پرداخت)' : ''}</h3>
                     <p><small>نرخ: ${station.rate.toLocaleString('fa-IR')} تومان/ساعت</small></p>
                     <div class="time-display">${formattedTime}</div>
+                    ${station.isCountdown ? `
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-inner" style="width: ${progressPercentage}%;"></div>
+                        </div>
+                    ` : ''}
                     <div class="cost-display">${totalCost.toLocaleString('fa-IR')} تومان</div>
                     <div class="station-products">
                         <small>محصولات خریداری شده:</small>
@@ -163,12 +171,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         </ul>
                     </div>
                     <div class="controls">
-                        <button class="start-btn" ${station.startTime ? 'disabled' : ''}>شروع</button>
-                        <button class="stop-btn" ${!station.startTime ? 'disabled' : ''}>توقف</button>
-                        <button class="add-product-to-station-btn">افزودن محصول</button>
-                        <button class="invoice-btn">صدور فاکتور</button>
-                        <button class="edit-station-btn">ویرایش</button>
-                        <button class="delete-station-btn">حذف</button>
+                        ${
+                            station.startTime
+                                ? `<button class="stop-btn" title="توقف"><i class="fas fa-pause"></i></button>`
+                                : `<button class="start-btn" title="شروع"><i class="fas fa-play"></i></button>`
+                        }
+                        <button class="add-product-to-station-btn" title="افزودن محصول"><i class="fas fa-cart-plus"></i></button>
+                        <button class="invoice-btn" title="صدور فاکتور"><i class="fas fa-file-invoice"></i></button>
+                        <button class="edit-station-btn" title="ویرایش"><i class="fas fa-pencil-alt"></i></button>
+                        <button class="delete-station-btn" title="حذف"><i class="fas fa-trash-alt"></i></button>
                     </div>
                 `;
             }
@@ -476,8 +487,16 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {string} paymentMethod
      */
     function finalizeTransaction(stationId, paymentMethod) {
+        if (isFinalizing) {
+            return;
+        }
+        isFinalizing = true;
+
         const station = stations.find(s => s.id === stationId);
-        if (!station) return;
+        if (!station) {
+            isFinalizing = false; // Release lock if station not found
+            return;
+        }
 
         const timeCost = calculateTimeCost(station);
         const productsCost = station.products.reduce((total, p) => total + p.price, 0);
@@ -505,6 +524,11 @@ document.addEventListener('DOMContentLoaded', () => {
         hideModal(invoiceModal);
         renderStations();
         saveState();
+
+        // Release the lock after a short delay to prevent any lingering click events
+        setTimeout(() => {
+            isFinalizing = false;
+        }, 300);
     }
 
     function calculateTimeCost(station) {
@@ -531,15 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
             deleteProduct(productId);
         }
     });
-    invoiceModal.addEventListener('click', (e) => {
-        const stationId = parseInt(invoiceModal.dataset.stationId);
-        if (e.target.id === 'pay-cash-btn') {
-            finalizeTransaction(stationId, 'cash');
-        } else if (e.target.id === 'pay-card-btn') {
-            finalizeTransaction(stationId, 'card');
-        }
-    });
-
     /**
      * Processes history and renders the report modal
      */

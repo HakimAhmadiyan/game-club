@@ -59,21 +59,6 @@ main {
     padding: 20px;
 }
 
-/* --- Glassmorphism Effect --- */
-.glass {
-    background: var(--card-bg-light);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-radius: 15px;
-    border: 1px solid var(--border-color-light);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-}
-
-body.dark-mode .glass {
-    background: var(--card-bg-dark);
-    border: 1px solid var(--border-color-dark);
-}
-
 /* --- Components --- */
 h1, h2, h3 {
     margin-top: 0;
@@ -139,6 +124,18 @@ header {
 .station-card {
     padding: 20px;
     text-align: center;
+    /* Adding glass effect to station cards */
+    background: var(--card-bg-light);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 15px;
+    border: 1px solid var(--border-color-light);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+body.dark-mode .station-card {
+    background: var(--card-bg-dark);
+    border: 1px solid var(--border-color-dark);
 }
 
 .station-card h3 {
@@ -154,6 +151,30 @@ header {
 .station-card .cost-display {
     font-size: 1.2rem;
     margin-bottom: 15px;
+}
+
+.progress-bar-container {
+    width: 90%;
+    margin: 10px auto;
+    height: 10px;
+    background-color: rgba(0,0,0,0.1);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.progress-bar-inner {
+    height: 100%;
+    background-color: var(--primary-color-dark);
+    border-radius: 5px;
+    transition: width 0.5s ease-out;
+}
+
+.station-card.warning .progress-bar-inner {
+    background-color: #ffc107;
+}
+
+.station-card.times-up .progress-bar-inner {
+    background-color: #dc3545;
 }
 
 .station-card .controls {
@@ -282,6 +303,18 @@ body.dark-mode #products-list .product-item:hover {
     width: 90%;
     max-width: 400px;
     position: relative;
+    /* Adding glass effect to all modal contents */
+    background: var(--card-bg-light);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 15px;
+    border: 1px solid var(--border-color-light);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+body.dark-mode .modal-content {
+    background: var(--card-bg-dark);
+    border: 1px solid var(--border-color-dark);
 }
 
 .close-btn {
