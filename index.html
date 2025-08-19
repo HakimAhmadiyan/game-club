@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدیریت گیم‌نت</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>مدیریت گیم‌نت</h1>
+            <div class="controls">
+                <button id="add-station-btn">افزودن سیستم جدید</button>
+                <div class="theme-switcher">
+                    <label for="theme-toggle">حالت تاریک</label>
+                    <input type="checkbox" id="theme-toggle">
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div id="stations-container" class="stations-container">
+                <!-- Station cards will be dynamically added here -->
+            </div>
+        </main>
+
+        <aside class="sidebar">
+            <h2>محصولات</h2>
+            <div id="products-list">
+                <!-- Products will be listed here -->
+            </div>
+            <div class="add-product-form">
+                <h3>افزودن محصول جدید</h3>
+                <input type="text" id="product-name-input" placeholder="نام محصول">
+                <input type="number" id="product-price-input" placeholder="قیمت (تومان)">
+                <button id="add-product-btn">افزودن محصول</button>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Modal for adding a new station -->
+    <div id="add-station-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>افزودن سیستم جدید</h2>
+            <input type="text" id="station-name-input" placeholder="نام سیستم (مثلا: PC 1)">
+            <input type="number" id="station-rate-input" placeholder="نرخ هر ساعت (تومان)">
+            <button id="confirm-add-station-btn">تایید</button>
+        </div>
+    </div>
+
+    <!-- Modal for showing invoice -->
+    <div id="invoice-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>فاکتور نهایی</h2>
+            <div id="invoice-details">
+                <!-- Invoice details will be populated here -->
+            </div>
+            <button id="print-invoice-btn">چاپ فاکتور</button>
+        </div>
+    </div>
+
+
+    <script src="script.js"></script>
+</body>
+</html>
