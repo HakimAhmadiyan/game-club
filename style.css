@@ -157,7 +157,17 @@ header {
 }
 
 /* --- Stations --- */
-.stations-container {
+.station-group {
+    margin-bottom: 30px;
+}
+
+.group-title {
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.stations-container-inner {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
@@ -193,6 +203,24 @@ header {
 .station-card .cost-display {
     font-size: 1.2rem;
     margin-bottom: 15px;
+}
+
+.station-products {
+    margin-top: 15px;
+    text-align: right;
+    font-size: 0.9rem;
+}
+
+.station-products ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 5px 0 0 0;
+    max-height: 80px;
+    overflow-y: auto;
+}
+
+.station-products li {
+    padding: 2px 5px;
 }
 
 .progress-bar-container {
@@ -436,6 +464,42 @@ body[data-theme="dark"] #pay-card-btn, body[data-theme="ultra-dark"] #pay-card-b
 }
 .button-like-label:hover {
     background-color: #5a6268;
+}
+
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.settings-form label {
+    font-weight: bold;
+}
+
+.settings-form input[type="number"], .settings-form select {
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background-color: rgba(255,255,255,0.2);
+}
+
+body[data-theme="light"] .settings-form input, body[data-theme="light"] .settings-form select {
+    border-color: #ccc;
+}
+
+.group-management {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+.group-management select {
+    flex-grow: 1;
+}
+.group-management input {
+    flex-grow: 2;
+}
+.group-management button {
+    padding: 8px 12px;
 }
 
 

@@ -52,7 +52,20 @@
             <h2>افزودن سیستم جدید</h2>
             <input type="text" id="station-name-input" placeholder="نام سیستم (مثلا: PC 1)">
             <input type="number" id="station-rate-input" placeholder="نرخ هر ساعت (تومان)">
-            <input type="number" id="station-duration-input" placeholder="مدت زمان (دقیقه) - اختیاری">
+            <label for="station-end-time-input">ساعت پایان (برای حالت پیش‌پرداخت):</label>
+            <input type="time" id="station-end-time-input">
+            <label for="station-alarm-sound">صدای هشدار:</label>
+            <select id="station-alarm-sound">
+                <option value="none">بی‌صدا</option>
+                <option value="beep">بیپ</option>
+                <option value="bell">زنگ</option>
+            </select>
+            <label for="station-group-select">گروه:</label>
+            <div class="group-management">
+                <select id="station-group-select"></select>
+                <input type="text" id="new-group-name-input" placeholder="ایجاد گروه جدید...">
+                <button type="button" id="add-new-group-btn">+</button>
+            </div>
             <button id="confirm-add-station-btn">تایید</button>
         </div>
     </div>

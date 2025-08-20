@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmAddStationBtn = document.getElementById('confirm-add-station-btn');
     const stationNameInput = document.getElementById('station-name-input');
     const stationRateInput = document.getElementById('station-rate-input');
-    const stationDurationInput = document.getElementById('station-duration-input');
+    const stationEndTimeInput = document.getElementById('station-end-time-input');
+    const stationAlarmSound = document.getElementById('station-alarm-sound');
     const themeToggle = document.getElementById('theme-toggle');
     const productsList = document.getElementById('products-list');
     const addProductBtn = document.getElementById('add-product-btn');
@@ -43,6 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteAllHistoryBtn = document.getElementById('delete-all-history-btn');
     const backupBtn = document.getElementById('backup-btn');
     const restoreInput = document.getElementById('restore-input');
+    const stationGroupSelect = document.getElementById('station-group-select');
+    const newGroupNameInput = document.getElementById('new-group-name-input');
+    const addNewGroupBtn = document.getElementById('add-new-group-btn');
     const addProductsModal = document.getElementById('add-products-modal');
     const productSelectionList = document.getElementById('product-selection-list');
     const productSearchInput = document.getElementById('product-search-input');
@@ -58,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let stations = [];
     let products = [];
     let history = [];
+    let stationGroups = ['عمومی']; // Default group
     let nextStationId = 1;
     let nextProductId = 1;
     let nextHistoryId = 1;
@@ -74,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { timerInterval, ...stationData } = s;
             return stationData;
         });
-        localStorage.setItem('gameNetState', JSON.stringify({ settings, stations: stationsToSave, products, history, nextStationId, nextProductId, nextHistoryId }));
+        localStorage.setItem('gameNetState', JSON.stringify({ settings, stations: stationsToSave, products, history, stationGroups, nextStationId, nextProductId, nextHistoryId }));
     }
 
     /**
@@ -89,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             stations = state.stations || [];
             products = state.products || [];
             history = state.history || [];
+            stationGroups = state.stationGroups || ['عمومی'];
             nextStationId = state.nextStationId || 1;
             nextProductId = state.nextProductId || 1;
             nextHistoryId = state.nextHistoryId || 1;
@@ -140,103 +146,168 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Renders all stations to the DOM
+     * Renders all stations to the DOM, grouped by category.
      */
     function renderStations() {
         stationsContainer.innerHTML = '';
-        stations.forEach(station => {
-            const stationCard = document.createElement('div');
-            stationCard.className = 'station-card';
-            stationCard.dataset.id = station.id;
+        stationGroups.forEach(group => {
+            const stationsInGroup = stations.filter(s => s.group === group);
+            if (stationsInGroup.length === 0) return;
 
-            if (station.isEditing) {
-                // --- EDIT MODE ---
-                stationCard.innerHTML = `
-                    <div class="station-edit-view">
-                        <input type="text" class="edit-station-name" value="${station.name}" placeholder="نام سیستم">
-                        <input type="number" class="edit-station-rate" value="${station.rate}" placeholder="نرخ ساعتی (تومان)">
-                        ${station.isCountdown ? `<input type="number" class="edit-station-duration" value="${station.duration / 60000}" placeholder="مدت زمان (دقیقه)">` : ''}
-                        <div class="controls">
-                            <button class="save-station-btn" title="ذخیره"><i class="fas fa-save"></i></button>
-                            <button class="cancel-edit-btn" title="لغو"><i class="fas fa-times"></i></button>
+            const groupContainer = document.createElement('div');
+            groupContainer.className = 'station-group';
+            groupContainer.innerHTML = `<h2 class="group-title">${group}</h2>`;
+
+            const groupCardsContainer = document.createElement('div');
+            groupCardsContainer.className = 'stations-container-inner';
+
+            stationsInGroup.forEach(station => {
+                const stationCard = document.createElement('div');
+                stationCard.className = 'station-card';
+                stationCard.dataset.id = station.id;
+
+                if (station.isEditing) {
+                    // --- EDIT MODE ---
+                    let endTimeValue = '';
+                    if (station.isCountdown) {
+                        const startTime = station.startTime ? new Date(station.startTime) : new Date();
+                        const endTime = new Date(startTime.getTime() + station.duration);
+                        endTimeValue = `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
+                    }
+
+                    const groupOptions = stationGroups.map(g => `<option value="${g}" ${g === station.group ? 'selected' : ''}>${g}</option>`).join('');
+
+                    stationCard.innerHTML = `
+                        <div class="station-edit-view">
+                            <input type="text" class="edit-station-name" value="${station.name}" placeholder="نام سیستم">
+                            <input type="number" class="edit-station-rate" value="${station.rate}" placeholder="نرخ ساعتی (تومان)">
+                            <label>ساعت پایان:</label>
+                            <input type="time" class="edit-station-endtime" value="${endTimeValue}">
+                            <label>گروه:</label>
+                            <select class="edit-station-group">${groupOptions}</select>
+                            <label>صدای هشدار:</label>
+                            <select class="edit-station-alarm">
+                                <option value="none" ${station.alarmSound === 'none' ? 'selected' : ''}>بی‌صدا</option>
+                                <option value="beep" ${station.alarmSound === 'beep' ? 'selected' : ''}>بیپ</option>
+                                <option value="bell" ${station.alarmSound === 'bell' ? 'selected' : ''}>زنگ</option>
+                            </select>
+                            <div class="controls">
+                                <button class="save-station-btn" title="ذخیره"><i class="fas fa-save"></i></button>
+                                <button class="cancel-edit-btn" title="لغو"><i class="fas fa-times"></i></button>
+                            </div>
                         </div>
-                    </div>
-                `;
-            } else {
-                // --- DISPLAY MODE ---
-                let timeToDisplay = 0;
-                let isTimeUp = false;
-
-                if (station.isCountdown) {
-                    const elapsedTime = station.startTime ? Date.now() - station.startTime : 0;
-                    timeToDisplay = station.duration - station.elapsedTime - elapsedTime;
-                    if (timeToDisplay < 0) timeToDisplay = 0;
-
-                    if (station.startTime && timeToDisplay === 0) {
-                        isTimeUp = true;
-                        // Automatically stop the timer when time is up
-                        stopTimer(station, true);
-                    }
-
-                    if (timeToDisplay > 0 && timeToDisplay < 5 * 60 * 1000) { // 5 minutes warning
-                        stationCard.classList.add('warning');
-                    }
-                    if (isTimeUp) {
-                        stationCard.classList.add('times-up');
-                    }
-
+                    `;
                 } else {
-                    timeToDisplay = station.startTime ? Date.now() - station.startTime + station.elapsedTime : station.elapsedTime;
-                }
+                    // --- DISPLAY MODE ---
+                    let timeToDisplay = 0;
+                    let isTimeUp = false;
 
-                const formattedTime = formatTime(timeToDisplay);
-                const timeCost = calculateTimeCost(station);
-                const productsCost = station.products.reduce((total, p) => total + p.price, 0);
-                const totalCost = timeCost + productsCost;
+                    if (station.isCountdown) {
+                        const elapsedTime = station.startTime ? Date.now() - station.startTime : 0;
+                        timeToDisplay = station.duration - station.elapsedTime - elapsedTime;
+                        if (timeToDisplay < 0) timeToDisplay = 0;
 
-                const progressPercentage = station.isCountdown ? (timeToDisplay / station.duration) * 100 : 0;
-
-                stationCard.innerHTML = `
-                    <h3>${station.name} ${station.isCountdown ? '(پیش‌پرداخت)' : ''}</h3>
-                    <p><small>نرخ: ${station.rate.toLocaleString('fa-IR')} تومان/ساعت</small></p>
-                    <div class="time-display">${formattedTime}</div>
-                    ${station.isCountdown ? `
-                        <div class="progress-bar-container">
-                            <div class="progress-bar-inner" style="width: ${progressPercentage}%;"></div>
-                        </div>
-                    ` : ''}
-                    <div class="cost-display">${totalCost.toLocaleString('fa-IR')} تومان</div>
-                    <div class="station-products">
-                        <small>محصولات خریداری شده:</small>
-                        <ul class="purchased-products-list">
-                            ${station.products.map(p => `<li>${p.name} (${p.price.toLocaleString('fa-IR')} تومان)</li>`).join('') || '<li>-</li>'}
-                        </ul>
-                    </div>
-                    <div class="controls">
-                        ${
-                            station.startTime
-                                ? `<button class="stop-btn" title="توقف"><i class="fas fa-pause"></i></button>`
-                                : `<button class="start-btn" title="شروع"><i class="fas fa-play"></i></button>`
+                        if (station.startTime && timeToDisplay === 0 && !station.alarmPlayed) {
+                            isTimeUp = true;
+                            playSound(station.alarmSound);
+                            station.alarmPlayed = true;
+                            stopTimer(station, true);
                         }
-                        <button class="add-product-to-station-btn" title="افزودن محصول"><i class="fas fa-cart-plus"></i></button>
-                        <button class="invoice-btn" title="صدور فاکتور"><i class="fas fa-file-invoice"></i></button>
-                        <button class="reset-btn" title="ریست"><i class="fas fa-sync-alt"></i></button>
-                        <button class="edit-station-btn" title="ویرایش"><i class="fas fa-pencil-alt"></i></button>
-                        <button class="delete-station-btn" title="حذف"><i class="fas fa-trash-alt"></i></button>
-                    </div>
-                `;
-            }
-            stationsContainer.appendChild(stationCard);
+
+                        if (timeToDisplay > 0 && timeToDisplay < 5 * 60 * 1000) {
+                            stationCard.classList.add('warning');
+                        }
+                        if (isTimeUp) {
+                            stationCard.classList.add('times-up');
+                        }
+
+                    } else {
+                        timeToDisplay = station.startTime ? Date.now() - station.startTime + station.elapsedTime : station.elapsedTime;
+                    }
+
+                    const formattedTime = formatTime(timeToDisplay);
+                    const timeCost = calculateTimeCost(station);
+                    const productsCost = station.products.reduce((total, p) => total + p.price, 0);
+                    const totalCost = timeCost + productsCost;
+                    const progressPercentage = station.isCountdown ? (timeToDisplay / station.duration) * 100 : 0;
+
+                    stationCard.innerHTML = `
+                        <h3>${station.name} ${station.isCountdown ? '(پیش‌پرداخت)' : ''}</h3>
+                        <p><small>نرخ: ${station.rate.toLocaleString('fa-IR')} تومان/ساعت</small></p>
+                        <div class="time-display">${formattedTime}</div>
+                        ${station.isCountdown ? `<div class="progress-bar-container"><div class="progress-bar-inner" style="width: ${progressPercentage}%;"></div></div>` : ''}
+                        <div class="cost-display">${totalCost.toLocaleString('fa-IR')} تومان</div>
+                        <div class="station-products">
+                            <small>محصولات خریداری شده:</small>
+                            <ul class="purchased-products-list">
+                                ${station.products.map(p => `<li>${p.name} (${p.price.toLocaleString('fa-IR')} تومان)</li>`).join('') || '<li>-</li>'}
+                            </ul>
+                        </div>
+                        <div class="controls">
+                            ${station.startTime ? `<button class="stop-btn" title="توقف"><i class="fas fa-pause"></i></button>` : `<button class="start-btn" title="شروع"><i class="fas fa-play"></i></button>`}
+                            <button class="add-product-to-station-btn" title="افزودن محصول"><i class="fas fa-cart-plus"></i></button>
+                            <button class="invoice-btn" title="صدور فاکتور"><i class="fas fa-file-invoice"></i></button>
+                            <button class="reset-btn" title="ریست"><i class="fas fa-sync-alt"></i></button>
+                            <button class="edit-station-btn" title="ویرایش"><i class="fas fa-pencil-alt"></i></button>
+                            <button class="delete-station-btn" title="حذف"><i class="fas fa-trash-alt"></i></button>
+                        </div>
+                    `;
+                }
+                groupCardsContainer.appendChild(stationCard);
+            });
+            groupContainer.appendChild(groupCardsContainer);
+            stationsContainer.appendChild(groupContainer);
         });
     }
 
     /**
      * Adds a new station
      */
+    function populateGroupSelect() {
+        stationGroupSelect.innerHTML = '';
+        stationGroups.forEach(group => {
+            const option = document.createElement('option');
+            option.value = group;
+            option.textContent = group;
+            stationGroupSelect.appendChild(option);
+        });
+    }
+
+    function addNewGroup() {
+        const newGroupName = newGroupNameInput.value.trim();
+        if (newGroupName && !stationGroups.includes(newGroupName)) {
+            stationGroups.push(newGroupName);
+            populateGroupSelect();
+            stationGroupSelect.value = newGroupName; // Select the new group
+            newGroupNameInput.value = '';
+            saveState();
+        } else if (!newGroupName) {
+            alert('لطفا یک نام برای گروه جدید وارد کنید.');
+        } else {
+            alert('این نام گروه قبلا استفاده شده است.');
+        }
+    }
+
     function addStation() {
         const name = stationNameInput.value.trim();
         const rate = parseFloat(stationRateInput.value);
-        const duration = parseInt(stationDurationInput.value, 10);
+        const endTimeValue = stationEndTimeInput.value;
+
+        let duration = 0;
+        let isCountdown = false;
+
+        if (endTimeValue) {
+            const now = new Date();
+            const [hours, minutes] = endTimeValue.split(':');
+            const endTime = new Date();
+            endTime.setHours(hours, minutes, 0, 0);
+
+            if (endTime < now) { // If end time is for the next day
+                endTime.setDate(endTime.getDate() + 1);
+            }
+            duration = endTime.getTime() - now.getTime();
+            isCountdown = true;
+        }
 
         if (name && !isNaN(rate) && rate >= 0) {
             const newStation = {
@@ -248,13 +319,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 timerInterval: null,
                 products: [],
                 isEditing: false,
-                isCountdown: !isNaN(duration) && duration > 0,
-                duration: (!isNaN(duration) && duration > 0) ? duration * 60 * 1000 : 0,
+                isCountdown: isCountdown,
+                duration: duration,
+                alarmSound: stationAlarmSound.value,
+                alarmPlayed: false,
+                group: stationGroupSelect.value,
             };
             stations.push(newStation);
             stationNameInput.value = '';
             stationRateInput.value = '';
-            stationDurationInput.value = '';
+            stationEndTimeInput.value = '';
             hideModal(addStationModal);
             renderStations();
             saveState();
@@ -390,19 +464,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const station = stations.find(s => s.id === stationId);
         const newName = stationCard.querySelector('.edit-station-name').value.trim();
         const newRate = parseFloat(stationCard.querySelector('.edit-station-rate').value);
-        const durationInput = stationCard.querySelector('.edit-station-duration');
+        const endTimeInput = stationCard.querySelector('.edit-station-endtime');
+        const alarmSoundInput = stationCard.querySelector('.edit-station-alarm');
+        const groupInput = stationCard.querySelector('.edit-station-group');
 
         if (newName && !isNaN(newRate) && newRate >= 0) {
             station.name = newName;
             station.rate = newRate;
+            station.alarmSound = alarmSoundInput.value;
+            station.group = groupInput.value;
 
-            if (durationInput) {
-                const newDuration = parseInt(durationInput.value, 10);
-                if (!isNaN(newDuration) && newDuration > 0) {
-                    station.duration = newDuration * 60 * 1000;
+            if (endTimeInput) {
+                const endTimeValue = endTimeInput.value;
+                if (endTimeValue) {
+                    const now = new Date();
+                    const [hours, minutes] = endTimeValue.split(':');
+                    const endTime = new Date(station.startTime || Date.now()); // Base on start time if it exists
+                    endTime.setHours(hours, minutes, 0, 0);
+                    if (endTime < now) endTime.setDate(endTime.getDate() + 1);
+
+                    // Recalculate duration based on original start time and new end time
+                    const originalStartTime = new Date(station.startTime || Date.now());
+                    station.duration = endTime.getTime() - originalStartTime.getTime();
                 } else {
-                    alert('مدت زمان وارد شده معتبر نیست.');
-                    return; // Do not save if duration is invalid
+                    // Switched from countdown to count-up
+                    station.isCountdown = false;
                 }
             }
 
@@ -693,19 +779,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const headers = ['نام سیستم', 'تاریخ', 'مدت زمان (HH:MM:SS)', 'هزینه زمان', 'هزینه محصولات', 'مبلغ کل', 'نحوه پرداخت'];
-        const rows = filteredHistory.map(item => [
-            item.stationName,
-            new Date(item.date).toLocaleString('fa-IR'),
-            formatTime(item.duration),
-            item.timeCost,
-            item.productsCost,
-            item.totalCost,
-            item.paymentMethod === 'cash' ? 'نقدی' : 'کارت'
-        ]);
+        const rows = filteredHistory.map(item => {
+            const paymentMethodText = {
+                cash: 'نقدی',
+                card: 'کارت',
+                transfer: 'کارت به کارت'
+            }[item.paymentMethod] || item.paymentMethod;
+            return [
+                item.stationName,
+                new Date(item.date).toLocaleString('fa-IR'),
+                formatTime(item.duration),
+                item.timeCost,
+                item.productsCost,
+                item.totalCost,
+                paymentMethodText
+            ];
+        });
+
+        const totalRevenue = filteredHistory.reduce((sum, item) => sum + item.totalCost, 0);
+        const summaryRow = ['', '', '', '', 'جمع کل:', totalRevenue, ''].join(',');
 
         let csvContent = "data:text/csv;charset=utf-8,\uFEFF"
             + headers.join(",") + "\n"
-            + rows.map(e => e.join(",")).join("\n");
+            + rows.map(e => e.join(",")).join("\n") + "\n" + summaryRow;
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -731,13 +827,45 @@ document.addEventListener('DOMContentLoaded', () => {
         return filteredHistory;
     }
 
+    /**
+     * Plays a sound using the Web Audio API
+     * @param {string} soundName - The name of the sound to play ('beep', 'bell', etc.)
+     */
+    function playSound(soundName) {
+        if (soundName === 'none' || !window.AudioContext) return;
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
+
+        if (soundName === 'beep') {
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(900, audioCtx.currentTime);
+        } else if (soundName === 'bell') {
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime);
+        }
+
+        oscillator.start(audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+        oscillator.stop(audioCtx.currentTime + 0.5);
+    }
+
 
     // --- Event Listeners ---
     addStationBtn.addEventListener('click', () => {
         // Pre-fill the rate input with the default rate from settings
         stationRateInput.value = settings.defaultRate;
+        populateGroupSelect();
         showModal(addStationModal);
     });
+    addNewGroupBtn.addEventListener('click', addNewGroup);
     closeModalBtns.forEach(btn => btn.addEventListener('click', (e) => hideModal(e.target.closest('.modal'))));
     confirmAddStationBtn.addEventListener('click', addStation);
     stationsContainer.addEventListener('click', handleStationClick);
