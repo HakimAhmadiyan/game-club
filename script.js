@@ -23,14 +23,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const statsTotalRevenue = document.getElementById('stats-total-revenue');
     const statsTotalTransactions = document.getElementById('stats-total-transactions');
     const historyTableBody = document.getElementById('history-table-body');
+    const filterStartDate = document.getElementById('filter-start-date');
+    const filterEndDate = document.getElementById('filter-end-date');
+    const historySearchInput = document.getElementById('history-search-input');
+    const exportCsvBtn = document.getElementById('export-csv-btn');
+    const deleteFilteredBtn = document.getElementById('delete-filtered-btn');
+    const manualEntryBtn = document.getElementById('manual-entry-btn');
+    const manualEntryModal = document.getElementById('manual-entry-modal');
+    const manualStationSelect = document.getElementById('manual-station-select');
+    const manualStartTime = document.getElementById('manual-start-time');
+    const manualEndTime = document.getElementById('manual-end-time');
+    const manualPaymentMethod = document.getElementById('manual-payment-method');
+    const confirmManualEntryBtn = document.getElementById('confirm-manual-entry-btn');
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const defaultRateInput = document.getElementById('default-rate-input');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+    const deleteAllHistoryBtn = document.getElementById('delete-all-history-btn');
 
 
     // --- State ---
+    let settings = {
+        defaultRate: 20000,
+    };
     let stations = [];
     let products = [];
     let history = [];
     let nextStationId = 1;
     let nextProductId = 1;
+    let nextHistoryId = 1;
     let isFinalizing = false; // Guard to prevent double-firing transactions
 
     // --- Functions ---
@@ -44,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { timerInterval, ...stationData } = s;
             return stationData;
         });
-        localStorage.setItem('gameNetState', JSON.stringify({ stations: stationsToSave, products, history, nextStationId, nextProductId }));
+        localStorage.setItem('gameNetState', JSON.stringify({ settings, stations: stationsToSave, products, history, nextStationId, nextProductId, nextHistoryId }));
     }
 
     /**
@@ -54,11 +75,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedState = localStorage.getItem('gameNetState');
         if (savedState) {
             const state = JSON.parse(savedState);
+            // Load settings, merging with defaults to ensure new settings aren't lost
+            settings = { ...settings, ...(state.settings || {}) };
             stations = state.stations || [];
             products = state.products || [];
             history = state.history || [];
             nextStationId = state.nextStationId || 1;
             nextProductId = state.nextProductId || 1;
+            nextHistoryId = state.nextHistoryId || 1;
 
             // Recalculate time for running timers
             stations.forEach(station => {
@@ -178,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         <button class="add-product-to-station-btn" title="افزودن محصول"><i class="fas fa-cart-plus"></i></button>
                         <button class="invoice-btn" title="صدور فاکتور"><i class="fas fa-file-invoice"></i></button>
+                        <button class="reset-btn" title="ریست"><i class="fas fa-sync-alt"></i></button>
                         <button class="edit-station-btn" title="ویرایش"><i class="fas fa-pencil-alt"></i></button>
                         <button class="delete-station-btn" title="حذف"><i class="fas fa-trash-alt"></i></button>
                     </div>
@@ -308,9 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (e.target.classList.contains('stop-btn')) {
             stopTimer(station);
         } else if (e.target.classList.contains('reset-btn')) {
-            // Note: The reset button was removed in the new design to avoid accidental resets.
-            // If needed, it can be re-added. For now, we handle invoice generation.
-            // resetTimer(station);
+            resetStation(station);
         } else if (e.target.classList.contains('add-product-to-station-btn')) {
             openAddProductToStationModal(station);
         } else if (e.target.classList.contains('invoice-btn')) {
@@ -418,16 +441,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Resets the timer for a station
+     * Resets a station's timer and products after confirmation.
      * @param {object} station
      */
-    function resetTimer(station) {
-        if (station.startTime) {
-            stopTimer(station);
+    function resetStation(station) {
+        if (confirm(`آیا از ریست کردن سیستم «${station.name}» مطمئن هستید؟ تمام زمان و محصولات این سیستم پاک خواهد شد.`)) {
+            if (station.startTime) {
+                stopTimer(station, true); // Stop silently
+            }
+            station.elapsedTime = 0;
+            station.products = [];
+            renderStations();
+            saveState();
         }
-        station.elapsedTime = 0;
-        renderStations();
-        saveState();
     }
 
 
@@ -502,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const productsCost = station.products.reduce((total, p) => total + p.price, 0);
 
         const historyRecord = {
+            id: nextHistoryId++,
             stationName: station.name,
             date: new Date().toISOString(),
             timeCost,
@@ -542,39 +569,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Event Listeners ---
-    themeToggle.addEventListener('change', toggleTheme);
-    addStationBtn.addEventListener('click', () => showModal(addStationModal));
-    closeModalBtns.forEach(btn => btn.addEventListener('click', (e) => hideModal(e.target.closest('.modal'))));
-    confirmAddStationBtn.addEventListener('click', addStation);
-    stationsContainer.addEventListener('click', handleStationClick);
-    addProductBtn.addEventListener('click', addProduct);
-    productsList.addEventListener('click', (e) => {
-        if (e.target.classList.contains('delete-product-btn')) {
-            const productId = parseInt(e.target.dataset.id);
-            deleteProduct(productId);
-        }
-    });
     /**
-     * Processes history and renders the report modal
+     * Applies current filters and re-renders the report
      */
-    function renderReport() {
+    function applyReportFilters() {
+        const filteredHistory = getFilteredHistory();
+        renderReport(filteredHistory);
+    }
+
+    /**
+     * Renders the report modal with a given dataset
+     * @param {Array} historyData - The data to render
+     */
+    function renderReport(historyData) {
         // Stats
+        const totalRevenue = historyData.reduce((sum, item) => sum + item.totalCost, 0);
+
+        // For "Today's Revenue", we always filter the complete history, regardless of the date filter
         const now = new Date();
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-
         const todayHistory = history.filter(item => item.date >= todayStart);
-
         const todayRevenue = todayHistory.reduce((sum, item) => sum + item.totalCost, 0);
-        const totalRevenue = history.reduce((sum, item) => sum + item.totalCost, 0);
 
         statsTodayRevenue.textContent = `${todayRevenue.toLocaleString('fa-IR')} تومان`;
         statsTotalRevenue.textContent = `${totalRevenue.toLocaleString('fa-IR')} تومان`;
-        statsTotalTransactions.textContent = history.length.toLocaleString('fa-IR');
+        statsTotalTransactions.textContent = historyData.length.toLocaleString('fa-IR');
 
         // History Table
         historyTableBody.innerHTML = '';
-        [...history].reverse().forEach(item => {
+        [...historyData].reverse().forEach(item => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${item.stationName}</td>
@@ -582,15 +605,92 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${formatTime(item.duration)}</td>
                 <td>${item.paymentMethod === 'cash' ? 'نقدی' : 'کارت'}</td>
                 <td>${item.totalCost.toLocaleString('fa-IR')} تومان</td>
+                <td><button class="delete-history-btn" data-id="${item.id}" title="حذف این رکورد"><i class="fas fa-trash-alt"></i></button></td>
             `;
             historyTableBody.appendChild(row);
         });
     }
 
+    function deleteHistoryEntry(id) {
+        if (confirm('آیا از حذف این رکورد مطمئن هستید؟')) {
+            history = history.filter(item => item.id !== id);
+            saveState();
+            applyReportFilters(); // Re-render the report with current filters
+        }
+    }
+
+    function deleteFilteredHistory() {
+        // This is a complex operation, so we need to be careful.
+        // First, get the IDs of all currently visible (filtered) items.
+        const filteredIds = Array.from(historyTableBody.querySelectorAll('tr .delete-history-btn')).map(btn => parseInt(btn.dataset.id, 10));
+
+        if (filteredIds.length === 0) {
+            alert('موردی برای حذف وجود ندارد.');
+            return;
+        }
+
+        if (confirm(`آیا از حذف ${filteredIds.length} مورد فیلتر شده مطمئن هستید؟ این عمل غیرقابل بازگشت است.`)) {
+            // Filter the main history array to exclude these IDs
+            history = history.filter(item => !filteredIds.includes(item.id));
+            saveState();
+            applyReportFilters(); // Re-render with the items removed
+        }
+    }
+
+    function exportToCSV() {
+        const filteredHistory = getFilteredHistory(); // Get current filtered data
+        if (filteredHistory.length === 0) {
+            alert('موردی برای خروجی گرفتن وجود ندارد.');
+            return;
+        }
+
+        const headers = ['نام سیستم', 'تاریخ', 'مدت زمان (HH:MM:SS)', 'هزینه زمان', 'هزینه محصولات', 'مبلغ کل', 'نحوه پرداخت'];
+        const rows = filteredHistory.map(item => [
+            item.stationName,
+            new Date(item.date).toLocaleString('fa-IR'),
+            formatTime(item.duration),
+            item.timeCost,
+            item.productsCost,
+            item.totalCost,
+            item.paymentMethod === 'cash' ? 'نقدی' : 'کارت'
+        ]);
+
+        let csvContent = "data:text/csv;charset=utf-8,"
+            + headers.join(",") + "\n"
+            + rows.map(e => e.join(",")).join("\n");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "game_net_report.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function getFilteredHistory() {
+        const startDate = filterStartDate.value ? new Date(filterStartDate.value).toISOString() : null;
+        const endDate = filterEndDate.value ? new Date(filterEndDate.value).toISOString() : null;
+        const searchTerm = historySearchInput.value.toLowerCase();
+        let filteredHistory = history;
+        if (startDate) filteredHistory = filteredHistory.filter(item => item.date >= startDate);
+        if (endDate) {
+            const inclusiveEndDate = new Date(endDate);
+            inclusiveEndDate.setDate(inclusiveEndDate.getDate() + 1);
+            filteredHistory = filteredHistory.filter(item => item.date < inclusiveEndDate.toISOString());
+        }
+        if (searchTerm) filteredHistory = filteredHistory.filter(item => item.stationName.toLowerCase().includes(searchTerm));
+        return filteredHistory;
+    }
+
 
     // --- Event Listeners ---
     themeToggle.addEventListener('change', toggleTheme);
-    addStationBtn.addEventListener('click', () => showModal(addStationModal));
+    addStationBtn.addEventListener('click', () => {
+        // Pre-fill the rate input with the default rate from settings
+        stationRateInput.value = settings.defaultRate;
+        showModal(addStationModal);
+    });
     closeModalBtns.forEach(btn => btn.addEventListener('click', (e) => hideModal(e.target.closest('.modal'))));
     confirmAddStationBtn.addEventListener('click', addStation);
     stationsContainer.addEventListener('click', handleStationClick);
@@ -612,9 +712,116 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     reportBtn.addEventListener('click', () => {
-        renderReport();
+        applyReportFilters(); // Apply default/empty filters when opening
         showModal(reportModal);
     });
+
+    settingsBtn.addEventListener('click', () => {
+        // Populate settings modal with current values
+        defaultRateInput.value = settings.defaultRate;
+        showModal(settingsModal);
+    });
+
+    saveSettingsBtn.addEventListener('click', () => {
+        const newDefaultRate = parseFloat(defaultRateInput.value);
+        if (!isNaN(newDefaultRate) && newDefaultRate >= 0) {
+            settings.defaultRate = newDefaultRate;
+            saveState();
+            hideModal(settingsModal);
+            alert('تنظیمات ذخیره شد.');
+        } else {
+            alert('لطفا نرخ پیش‌فرض معتبر وارد کنید.');
+        }
+    });
+
+    deleteAllHistoryBtn.addEventListener('click', () => {
+        if (confirm('آیا از حذف **تمام تاریخچه** مطمئن هستید؟ این عمل غیرقابل بازگشت است!')) {
+            history = [];
+            nextHistoryId = 1;
+            saveState();
+            alert('کل تاریخچه با موفقیت پاک شد.');
+            // We can also re-render the report if it's open
+            if (reportModal.style.display === 'flex') {
+                applyReportFilters();
+            }
+            // Do not close the settings modal, let the user do it.
+        }
+    });
+
+    // Report filter event listeners
+    filterStartDate.addEventListener('change', applyReportFilters);
+    filterEndDate.addEventListener('change', applyReportFilters);
+    historySearchInput.addEventListener('input', applyReportFilters);
+
+    historyTableBody.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.delete-history-btn');
+        if (deleteBtn) {
+            const historyId = parseInt(deleteBtn.dataset.id, 10);
+            deleteHistoryEntry(historyId);
+        }
+    });
+
+    exportCsvBtn.addEventListener('click', exportToCSV);
+    deleteFilteredBtn.addEventListener('click', deleteFilteredHistory);
+
+
+    /**
+     * Opens the manual entry modal and populates the station list
+     */
+    function openManualEntryModal() {
+        manualStationSelect.innerHTML = '';
+        if (stations.length === 0) {
+            manualStationSelect.innerHTML = '<option value="">ابتدا یک سیستم اضافه کنید</option>';
+            return;
+        }
+        stations.forEach(station => {
+            const option = document.createElement('option');
+            option.value = station.id;
+            option.textContent = station.name;
+            manualStationSelect.appendChild(option);
+        });
+        showModal(manualEntryModal);
+    }
+
+    /**
+     * Finalizes a manually entered session
+     */
+    function finalizeManualEntry() {
+        const stationId = parseInt(manualStationSelect.value, 10);
+        const startTime = new Date(manualStartTime.value);
+        const endTime = new Date(manualEndTime.value);
+        const paymentMethod = manualPaymentMethod.value;
+
+        const station = stations.find(s => s.id === stationId);
+
+        if (!stationId || !station || isNaN(startTime) || isNaN(endTime) || endTime <= startTime) {
+            alert('لطفا تمام فیلدها را به درستی وارد کنید. زمان پایان باید بعد از زمان شروع باشد.');
+            return;
+        }
+
+        const duration = endTime.getTime() - startTime.getTime();
+        const timeCost = Math.floor((duration / (1000 * 60 * 60)) * station.rate);
+
+        const historyRecord = {
+            id: nextHistoryId++,
+            stationName: station.name,
+            date: endTime.toISOString(),
+            timeCost,
+            productsCost: 0, // Manual entry does not include products for now
+            totalCost: timeCost,
+            paymentMethod,
+            products: [],
+            duration
+        };
+        history.push(historyRecord);
+
+        manualStartTime.value = '';
+        manualEndTime.value = '';
+        hideModal(manualEntryModal);
+        saveState();
+        alert('جلسه دستی با موفقیت ثبت شد.');
+    }
+
 
     // --- Initial Load & Render ---
     loadState();
