@@ -1,34 +1,71 @@
 /* --- General Setup --- */
 :root {
-    --bg-color-light: #f0f2f5;
-    --text-color-light: #333;
-    --card-bg-light: rgba(255, 255, 255, 0.6);
-    --primary-color-light: #007bff;
-    --primary-hover-light: #0056b3;
-    --border-color-light: rgba(255, 255, 255, 0.8);
-
-    --bg-color-dark: #1a1a1a;
-    --text-color-dark: #f1f1f1;
-    --card-bg-dark: rgba(40, 40, 40, 0.5);
-    --primary-color-dark: #4dabf7;
-    --primary-hover-dark: #1c7ed6;
-    --border-color-dark: rgba(255, 255, 255, 0.1);
+    /* Color variables will be defined within theme scopes now */
+    --accent-blue: #4dabf7;
+    --accent-blue-hover: #1c7ed6;
+    --accent-green: #69db7c;
+    --accent-green-hover: #37b24d;
+    --accent-purple: #da77f2;
+    --accent-purple-hover: #be4bdb;
 }
 
 body {
     font-family: 'Vazirmatn', sans-serif;
     margin: 0;
     padding: 20px;
-    background-color: var(--bg-color-light);
-    color: var(--text-color-light);
     transition: background-color 0.3s, color 0.3s;
-    background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
 }
 
-body.dark-mode {
-    background-color: var(--bg-color-dark);
-    color: var(--text-color-dark);
-    background-image: linear-gradient(to top, #30cfd0 0%, #330867 100%);
+/* Light Theme (Default) */
+body, body[data-theme="light"] {
+    --bg-color: #f0f2f5;
+    --text-color: #333;
+    --card-bg: rgba(255, 255, 255, 0.6);
+    --primary-color: #007bff;
+    --primary-hover: #0056b3;
+    --border-color: rgba(255, 255, 255, 0.8);
+    --bg-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
+}
+
+/* Dark Glass Theme */
+body[data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #f1f1f1;
+    --card-bg: rgba(40, 40, 40, 0.5);
+    --primary-color: var(--accent-blue);
+    --primary-hover: var(--accent-blue-hover);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --bg-image: linear-gradient(to top, #30cfd0 0%, #330867 100%);
+}
+
+/* Ultra Dark Theme */
+body[data-theme="ultra-dark"] {
+    --bg-color: #000000;
+    --text-color: #e9ecef;
+    --card-bg: rgba(25, 25, 25, 0.5);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --bg-image: none; /* No gradient for pure black */
+}
+
+/* Accent Colors for Ultra Dark */
+body[data-theme="ultra-dark"][data-accent="blue"] {
+    --primary-color: var(--accent-blue);
+    --primary-hover: var(--accent-blue-hover);
+}
+body[data-theme="ultra-dark"][data-accent="green"] {
+    --primary-color: var(--accent-green);
+    --primary-hover: var(--accent-green-hover);
+}
+body[data-theme="ultra-dark"][data-accent="purple"] {
+    --primary-color: var(--accent-purple);
+    --primary-hover: var(--accent-purple-hover);
+}
+
+/* Apply the theme colors */
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    background-image: var(--bg-image);
 }
 
 .container {
@@ -67,9 +104,9 @@ main {
     align-self: start; /* Prevent stretching */
 }
 
-body.dark-mode .sidebar {
-    background: var(--card-bg-dark);
-    border: 1px solid var(--border-color-dark);
+.sidebar {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
 }
 
 /* --- Components --- */
@@ -82,22 +119,14 @@ button {
     padding: 10px 20px;
     border: none;
     border-radius: 8px;
-    background-color: var(--primary-color-light);
+    background-color: var(--primary-color);
     color: white;
     cursor: pointer;
     transition: background-color 0.2s;
 }
 
 button:hover {
-    background-color: var(--primary-hover-light);
-}
-
-body.dark-mode button {
-    background-color: var(--primary-color-dark);
-}
-
-body.dark-mode button:hover {
-    background-color: var(--primary-hover-dark);
+    background-color: var(--primary-hover);
 }
 
 input[type="text"], input[type="number"] {
@@ -146,9 +175,9 @@ header {
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
 
-body.dark-mode .station-card {
-    background: var(--card-bg-dark);
-    border: 1px solid var(--border-color-dark);
+.station-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
 }
 
 .station-card h3 {
@@ -325,9 +354,9 @@ body.dark-mode #products-list .product-item:hover {
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
 
-body.dark-mode .modal-content {
-    background: var(--card-bg-dark);
-    border: 1px solid var(--border-color-dark);
+.modal-content {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
 }
 
 .close-btn {
@@ -361,9 +390,50 @@ body.dark-mode .modal-content {
 #pay-card-btn {
     background-color: var(--primary-color-light);
 }
-body.dark-mode #pay-card-btn {
-    background-color: var(--primary-color-dark);
+body[data-theme="dark"] #pay-card-btn, body[data-theme="ultra-dark"] #pay-card-btn {
+    background-color: var(--primary-color);
 }
+
+/* --- Settings Modal Styles --- */
+#accent-color-selector {
+    margin-top: 10px;
+}
+.color-swatches {
+    display: flex;
+    gap: 10px;
+    margin-top: 5px;
+}
+.color-swatch {
+    width: 30px;
+    height: 30px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    border-radius: 50%;
+}
+.color-swatch.selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 5px var(--primary-color);
+}
+
+.backup-restore-section {
+    display: flex;
+    gap: 10px;
+}
+
+.button-like-label {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 8px;
+    background-color: #6c757d;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    text-align: center;
+}
+.button-like-label:hover {
+    background-color: #5a6268;
+}
+
 
 /* --- Report Modal Styles --- */
 .modal-content.large {
@@ -411,7 +481,11 @@ body.dark-mode #pay-card-btn {
     background-color: rgba(0,0,0,0.05);
 }
 
-body.dark-mode .stat-box {
+.stat-box {
+    background-color: rgba(0,0,0,0.05);
+}
+
+body[data-theme="dark"] .stat-box, body[data-theme="ultra-dark"] .stat-box {
     background-color: rgba(255,255,255,0.08);
 }
 
@@ -439,7 +513,7 @@ body.dark-mode .stat-box {
 
 .history-table th, .history-table td {
     padding: 12px 15px;
-    border-bottom: 1px solid var(--border-color-dark);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .history-table thead {
@@ -448,6 +522,6 @@ body.dark-mode .stat-box {
     top: 0;
 }
 
-body.dark-mode .history-table thead {
+body[data-theme="dark"] .history-table thead, body[data-theme="ultra-dark"] .history-table thead {
     background-color: rgba(255,255,255,0.1);
 }

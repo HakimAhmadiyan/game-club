@@ -161,7 +161,32 @@
                 <label for="default-rate-input">نرخ ساعتی پیش‌فرض:</label>
                 <input type="number" id="default-rate-input" placeholder="مثلا: 20000">
 
+                <hr>
+
+                <label for="theme-select">انتخاب تم:</label>
+                <select id="theme-select">
+                    <option value="light">روشن</option>
+                    <option value="dark">تاریک شیشه‌ای</option>
+                    <option value="ultra-dark">اولترا دارک</option>
+                </select>
+
+                <div id="accent-color-selector" style="display:none;">
+                    <label>انتخاب رنگ مکمل:</label>
+                    <div class="color-swatches">
+                        <button class="color-swatch" data-color="blue" style="background: #4dabf7;"></button>
+                        <button class="color-swatch" data-color="green" style="background: #69db7c;"></button>
+                        <button class="color-swatch" data-color="purple" style="background: #da77f2;"></button>
+                    </div>
+                </div>
+
+                <hr>
                 <button id="save-settings-btn">ذخیره تنظیمات</button>
+                <hr>
+                <div class="backup-restore-section">
+                    <button id="backup-btn">پشتیبان‌گیری</button>
+                    <label for="restore-input" class="button-like-label">بازیابی</label>
+                    <input type="file" id="restore-input" accept=".json" style="display:none;">
+                </div>
                 <hr>
                 <button id="delete-all-history-btn" class="danger-btn">پاک کردن کل تاریخچه</button>
             </div>

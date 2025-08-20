@@ -40,11 +40,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const defaultRateInput = document.getElementById('default-rate-input');
     const saveSettingsBtn = document.getElementById('save-settings-btn');
     const deleteAllHistoryBtn = document.getElementById('delete-all-history-btn');
+    const backupBtn = document.getElementById('backup-btn');
+    const restoreInput = document.getElementById('restore-input');
 
 
     // --- State ---
     let settings = {
         defaultRate: 20000,
+        theme: 'light',
+        accentColor: 'blue',
     };
     let stations = [];
     let products = [];
@@ -99,11 +103,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Toggles between light and dark theme
+     * Applies the selected theme and accent color to the body element
      */
-    function toggleTheme() {
-        document.body.classList.toggle('dark-mode');
-        localStorage.setItem('gameNetTheme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+    function applyTheme() {
+        document.body.dataset.theme = settings.theme;
+        document.body.dataset.accent = settings.accentColor;
+
+        // Show/hide accent color selector based on theme
+        const accentSelector = document.getElementById('accent-color-selector');
+        if (settings.theme === 'ultra-dark') {
+            accentSelector.style.display = 'block';
+        } else {
+            accentSelector.style.display = 'none';
+        }
     }
 
     /**
@@ -341,8 +353,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (e.target.classList.contains('delete-station-btn')) {
             deleteStation(stationId);
         } else if (e.target.classList.contains('edit-station-btn')) {
-            station.isEditing = true;
-            renderStations();
+            // If countdown timer is running, this button adds time. Otherwise, it edits details.
+            if (station.isCountdown && station.startTime) {
+                openExtendTimeModal(station);
+            } else {
+                station.isEditing = true;
+                renderStations();
+            }
         } else if (e.target.classList.contains('cancel-edit-btn')) {
             station.isEditing = false;
             renderStations();
@@ -356,6 +373,27 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {number} stationId
      * @param {HTMLElement} stationCard
      */
+    /**
+     * Opens a prompt to add more time to a running countdown station
+     * @param {object} station
+     */
+    function openExtendTimeModal(station) {
+        const minutesToAdd = parseInt(prompt('چند دقیقه می‌خواهید اضافه کنید؟'), 10);
+        if (!isNaN(minutesToAdd) && minutesToAdd > 0) {
+            const timeToAdd = minutesToAdd * 60 * 1000;
+            station.duration += timeToAdd;
+
+            // We also need to adjust the cost calculation for this session.
+            // The simplest way is to add a new property to track the total cost.
+            // However, for now, we will let the cost be recalculated based on the new total duration.
+
+            renderStations();
+            saveState();
+        } else if (minutesToAdd !== null) { // prompt wasn't cancelled
+            alert('لطفا یک عدد معتبر وارد کنید.');
+        }
+    }
+
     function saveStationEdits(stationId, stationCard) {
         const station = stations.find(s => s.id === stationId);
         const newName = stationCard.querySelector('.edit-station-name').value.trim();
@@ -685,7 +723,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Event Listeners ---
-    themeToggle.addEventListener('change', toggleTheme);
     addStationBtn.addEventListener('click', () => {
         // Pre-fill the rate input with the default rate from settings
         stationRateInput.value = settings.defaultRate;
@@ -716,16 +753,39 @@ document.addEventListener('DOMContentLoaded', () => {
         showModal(reportModal);
     });
 
+    manualEntryBtn.addEventListener('click', openManualEntryModal);
+
     settingsBtn.addEventListener('click', () => {
         // Populate settings modal with current values
         defaultRateInput.value = settings.defaultRate;
+        document.getElementById('theme-select').value = settings.theme;
+        document.querySelectorAll('.color-swatch').forEach(swatch => {
+            swatch.classList.toggle('selected', swatch.dataset.color === settings.accentColor);
+        });
+        applyTheme(); // To show/hide accent colors
         showModal(settingsModal);
+    });
+
+    document.getElementById('theme-select').addEventListener('change', (e) => {
+        settings.theme = e.target.value;
+        applyTheme();
+    });
+
+    document.querySelector('.color-swatches').addEventListener('click', (e) => {
+        const swatch = e.target.closest('.color-swatch');
+        if (swatch) {
+            settings.accentColor = swatch.dataset.color;
+            document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+            swatch.classList.add('selected');
+            applyTheme();
+        }
     });
 
     saveSettingsBtn.addEventListener('click', () => {
         const newDefaultRate = parseFloat(defaultRateInput.value);
         if (!isNaN(newDefaultRate) && newDefaultRate >= 0) {
             settings.defaultRate = newDefaultRate;
+            // Theme and accent are already updated in the settings object by their own listeners
             saveState();
             hideModal(settingsModal);
             alert('تنظیمات ذخیره شد.');
@@ -763,6 +823,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     exportCsvBtn.addEventListener('click', exportToCSV);
     deleteFilteredBtn.addEventListener('click', deleteFilteredHistory);
+    backupBtn.addEventListener('click', backupData);
+    restoreInput.addEventListener('change', restoreData);
 
 
     /**
@@ -823,13 +885,66 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    /**
+     * Creates a JSON backup file of the entire app state and downloads it.
+     */
+    function backupData() {
+        const stateToSave = { settings, stations, products, history, nextStationId, nextProductId, nextHistoryId };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stateToSave, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `gamenet_backup_${new Date().toISOString().split('T')[0]}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        alert('فایل پشتیبان با موفقیت ایجاد شد.');
+    }
+
+    /**
+     * Reads a JSON backup file and restores the app state from it.
+     * @param {Event} event
+     */
+    function restoreData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const state = JSON.parse(e.target.result);
+                // Basic validation
+                if (state && state.settings && state.stations && state.history) {
+                    if (confirm('آیا مطمئن هستید؟ تمام اطلاعات فعلی با اطلاعات فایل پشتیبان جایگزین خواهد شد.')) {
+                        // Replace current state with restored state
+                        settings = state.settings;
+                        stations = state.stations;
+                        products = state.products;
+                        history = state.history;
+                        nextStationId = state.nextStationId;
+                        nextProductId = state.nextProductId;
+                        nextHistoryId = state.nextHistoryId;
+
+                        saveState();
+                        alert('اطلاعات با موفقیت بازیابی شد. صفحه مجددا بارگذاری می‌شود.');
+                        location.reload();
+                    }
+                } else {
+                    alert('فایل پشتیبان معتبر نیست.');
+                }
+            } catch (error) {
+                alert('خطا در خواندن فایل. لطفا از معتبر بودن فایل پشتیبان اطمینان حاصل کنید.');
+                console.error("Error parsing restore file:", error);
+            }
+        };
+        reader.readAsText(file);
+        // Clear the input value so the same file can be selected again
+        event.target.value = '';
+    }
+
+
     // --- Initial Load & Render ---
     loadState();
-    const savedTheme = localStorage.getItem('gameNetTheme');
-    if (savedTheme === 'dark') {
-        document.body.classList.add('dark-mode');
-        themeToggle.checked = true;
-    }
+    applyTheme(); // Apply saved theme on startup
     renderStations();
     renderProducts();
 });
