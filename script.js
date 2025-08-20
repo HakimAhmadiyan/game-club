@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const invoiceDetails = document.getElementById('invoice-details');
     const payCashBtn = document.getElementById('pay-cash-btn');
     const payCardBtn = document.getElementById('pay-card-btn');
+    const payTransferBtn = document.getElementById('pay-transfer-btn');
     const reportBtn = document.getElementById('report-btn');
     const reportModal = document.getElementById('report-modal');
     const statsTodayRevenue = document.getElementById('stats-today-revenue');
@@ -42,6 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteAllHistoryBtn = document.getElementById('delete-all-history-btn');
     const backupBtn = document.getElementById('backup-btn');
     const restoreInput = document.getElementById('restore-input');
+    const addProductsModal = document.getElementById('add-products-modal');
+    const productSelectionList = document.getElementById('product-selection-list');
+    const productSearchInput = document.getElementById('product-search-input');
+    const confirmAddProductsBtn = document.getElementById('confirm-add-products-btn');
 
 
     // --- State ---
@@ -150,6 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="station-edit-view">
                         <input type="text" class="edit-station-name" value="${station.name}" placeholder="نام سیستم">
                         <input type="number" class="edit-station-rate" value="${station.rate}" placeholder="نرخ ساعتی (تومان)">
+                        ${station.isCountdown ? `<input type="number" class="edit-station-duration" value="${station.duration / 60000}" placeholder="مدت زمان (دقیقه)">` : ''}
                         <div class="controls">
                             <button class="save-station-btn" title="ذخیره"><i class="fas fa-save"></i></button>
                             <button class="cancel-edit-btn" title="لغو"><i class="fas fa-times"></i></button>
@@ -271,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
             productItem.className = 'product-item';
             productItem.innerHTML = `
                 <span class="product-info">${product.name} - ${product.price.toLocaleString('fa-IR')} تومان</span>
-                <button class="delete-product-btn" data-id="${product.id}">&times;</button>
+                <button class="delete-product-btn icon-btn" data-id="${product.id}" title="حذف محصول"><i class="fas fa-trash-alt"></i></button>
             `;
             productsList.appendChild(productItem);
         });
@@ -301,32 +307,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Opens a modal to add a product to a specific station
+     * Renders the list of products in the multi-select modal, optionally filtered by a search term.
+     * @param {string} [searchTerm=''] - The term to filter products by.
+     */
+    function renderProductSelectionList(searchTerm = '') {
+        productSelectionList.innerHTML = '';
+        const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        if (filteredProducts.length === 0) {
+            productSelectionList.innerHTML = '<p>محصولی یافت نشد.</p>';
+            return;
+        }
+
+        filteredProducts.forEach(product => {
+            const item = document.createElement('div');
+            item.className = 'product-selection-item';
+            item.innerHTML = `
+                <input type="checkbox" id="product-check-${product.id}" data-product-id="${product.id}">
+                <label for="product-check-${product.id}">${product.name} - ${product.price.toLocaleString('fa-IR')} تومان</label>
+                <input type="number" class="product-quantity-input" value="1" min="1">
+            `;
+            productSelectionList.appendChild(item);
+        });
+    }
+
+    /**
+     * Opens the multi-select product modal for a specific station
      * @param {object} station
      */
     function openAddProductToStationModal(station) {
-        // For simplicity, we'll use a prompt for now.
-        // A better UI would be a custom modal listing all available products.
         if (products.length === 0) {
             alert('ابتدا باید محصولی را در بخش محصولات تعریف کنید.');
             return;
         }
-
-        let productPromptMsg = 'کدام محصول را می‌خواهید اضافه کنید؟\n\n';
-        products.forEach((p, index) => {
-            productPromptMsg += `${index + 1}: ${p.name} (${p.price.toLocaleString('fa-IR')} تومان)\n`;
-        });
-
-        const choiceIndex = parseInt(prompt(productPromptMsg)) - 1;
-
-        if (!isNaN(choiceIndex) && choiceIndex >= 0 && choiceIndex < products.length) {
-            const selectedProduct = products[choiceIndex];
-            station.products.push(selectedProduct);
-            renderStations();
-            saveState();
-        } else {
-            alert('انتخاب نامعتبر.');
-        }
+        // Store the station ID on the modal to retrieve it later
+        addProductsModal.dataset.stationId = station.id;
+        productSearchInput.value = ''; // Clear search
+        renderProductSelectionList();
+        showModal(addProductsModal);
     }
 
     /**
@@ -353,13 +371,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (e.target.classList.contains('delete-station-btn')) {
             deleteStation(stationId);
         } else if (e.target.classList.contains('edit-station-btn')) {
-            // If countdown timer is running, this button adds time. Otherwise, it edits details.
-            if (station.isCountdown && station.startTime) {
-                openExtendTimeModal(station);
-            } else {
-                station.isEditing = true;
-                renderStations();
-            }
+            station.isEditing = true;
+            renderStations();
         } else if (e.target.classList.contains('cancel-edit-btn')) {
             station.isEditing = false;
             renderStations();
@@ -373,35 +386,26 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {number} stationId
      * @param {HTMLElement} stationCard
      */
-    /**
-     * Opens a prompt to add more time to a running countdown station
-     * @param {object} station
-     */
-    function openExtendTimeModal(station) {
-        const minutesToAdd = parseInt(prompt('چند دقیقه می‌خواهید اضافه کنید؟'), 10);
-        if (!isNaN(minutesToAdd) && minutesToAdd > 0) {
-            const timeToAdd = minutesToAdd * 60 * 1000;
-            station.duration += timeToAdd;
-
-            // We also need to adjust the cost calculation for this session.
-            // The simplest way is to add a new property to track the total cost.
-            // However, for now, we will let the cost be recalculated based on the new total duration.
-
-            renderStations();
-            saveState();
-        } else if (minutesToAdd !== null) { // prompt wasn't cancelled
-            alert('لطفا یک عدد معتبر وارد کنید.');
-        }
-    }
-
     function saveStationEdits(stationId, stationCard) {
         const station = stations.find(s => s.id === stationId);
         const newName = stationCard.querySelector('.edit-station-name').value.trim();
         const newRate = parseFloat(stationCard.querySelector('.edit-station-rate').value);
+        const durationInput = stationCard.querySelector('.edit-station-duration');
 
-        if (newName && !isNaN(newRate) && newRate > 0) {
+        if (newName && !isNaN(newRate) && newRate >= 0) {
             station.name = newName;
             station.rate = newRate;
+
+            if (durationInput) {
+                const newDuration = parseInt(durationInput.value, 10);
+                if (!isNaN(newDuration) && newDuration > 0) {
+                    station.duration = newDuration * 60 * 1000;
+                } else {
+                    alert('مدت زمان وارد شده معتبر نیست.');
+                    return; // Do not save if duration is invalid
+                }
+            }
+
             station.isEditing = false;
             renderStations();
             saveState();
@@ -637,11 +641,17 @@ document.addEventListener('DOMContentLoaded', () => {
         historyTableBody.innerHTML = '';
         [...historyData].reverse().forEach(item => {
             const row = document.createElement('tr');
+            const paymentMethodText = {
+                cash: 'نقدی',
+                card: 'کارت',
+                transfer: 'کارت به کارت'
+            }[item.paymentMethod] || item.paymentMethod;
+
             row.innerHTML = `
                 <td>${item.stationName}</td>
                 <td>${new Date(item.date).toLocaleString('fa-IR')}</td>
                 <td>${formatTime(item.duration)}</td>
-                <td>${item.paymentMethod === 'cash' ? 'نقدی' : 'کارت'}</td>
+                <td>${paymentMethodText}</td>
                 <td>${item.totalCost.toLocaleString('fa-IR')} تومان</td>
                 <td><button class="delete-history-btn" data-id="${item.id}" title="حذف این رکورد"><i class="fas fa-trash-alt"></i></button></td>
             `;
@@ -693,7 +703,7 @@ document.addEventListener('DOMContentLoaded', () => {
             item.paymentMethod === 'cash' ? 'نقدی' : 'کارت'
         ]);
 
-        let csvContent = "data:text/csv;charset=utf-8,"
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"
             + headers.join(",") + "\n"
             + rows.map(e => e.join(",")).join("\n");
 
@@ -746,6 +756,11 @@ document.addEventListener('DOMContentLoaded', () => {
     payCardBtn.addEventListener('click', () => {
         const stationId = parseInt(invoiceModal.dataset.stationId);
         if (stationId) finalizeTransaction(stationId, 'card');
+    });
+
+    payTransferBtn.addEventListener('click', () => {
+        const stationId = parseInt(invoiceModal.dataset.stationId);
+        if (stationId) finalizeTransaction(stationId, 'transfer');
     });
 
     reportBtn.addEventListener('click', () => {
@@ -825,6 +840,33 @@ document.addEventListener('DOMContentLoaded', () => {
     deleteFilteredBtn.addEventListener('click', deleteFilteredHistory);
     backupBtn.addEventListener('click', backupData);
     restoreInput.addEventListener('change', restoreData);
+
+    productSearchInput.addEventListener('input', (e) => {
+        renderProductSelectionList(e.target.value);
+    });
+
+    confirmAddProductsBtn.addEventListener('click', () => {
+        const stationId = parseInt(addProductsModal.dataset.stationId, 10);
+        const station = stations.find(s => s.id === stationId);
+        if (!station) return;
+
+        const selectedItems = productSelectionList.querySelectorAll('input[type="checkbox"]:checked');
+        selectedItems.forEach(item => {
+            const productId = parseInt(item.dataset.productId, 10);
+            const product = products.find(p => p.id === productId);
+            const quantity = parseInt(item.closest('.product-selection-item').querySelector('.product-quantity-input').value, 10);
+
+            if (product && quantity > 0) {
+                for (let i = 0; i < quantity; i++) {
+                    station.products.push(product);
+                }
+            }
+        });
+
+        hideModal(addProductsModal);
+        renderStations();
+        saveState();
+    });
 
 
     /**
