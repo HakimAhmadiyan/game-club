@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -15,8 +16,11 @@
             <div class="controls">
                 <button id="report-btn">گزارشات</button>
                 <button id="add-station-btn">افزودن سیستم</button>
+                <button id="pause-all-btn" title="توقف تمام سیستم‌ها"><i class="fas fa-pause-circle"></i></button>
+                <button id="resume-all-btn" title="شروع مجدد تمام سیستم‌های متوقف"><i class="fas fa-play-circle"></i></button>
                 <button id="manual-entry-btn">ورود دستی</button>
                 <button id="settings-btn" title="تنظیمات"><i class="fas fa-cog"></i></button>
+                <button id="help-btn" title="راهنما"><i class="fas fa-question-circle"></i></button>
                 <div class="theme-switcher">
                     <label for="theme-toggle">حالت تاریک</label>
                     <input type="checkbox" id="theme-toggle">
@@ -25,6 +29,9 @@
         </header>
 
         <main>
+            <div id="station-filters" class="station-filters">
+                <!-- Filter buttons will be dynamically added here -->
+            </div>
             <div id="stations-container" class="stations-container">
                 <!-- Station cards will be dynamically added here -->
             </div>
@@ -38,7 +45,8 @@
             <div class="add-product-form">
                 <h3>افزودن محصول جدید</h3>
                 <input type="text" id="product-name-input" placeholder="نام محصول">
-                <input type="number" id="product-price-input" placeholder="قیمت (تومان)">
+                <input type="number" id="product-purchase-price-input" placeholder="قیمت خرید (تومان)">
+                <input type="number" id="product-price-input" placeholder="قیمت فروش (تومان)">
                 <button id="add-product-btn">افزودن محصول</button>
             </div>
         </aside>
@@ -103,6 +111,7 @@
                 </div>
                 <div class="report-actions">
                     <button id="export-csv-btn">خروجی CSV</button>
+                    <button id="toggle-chart-btn">نمایش چارت</button>
                     <button id="delete-filtered-btn" class="danger-btn">حذف موارد فیلتر شده</button>
                 </div>
             </div>
@@ -119,8 +128,12 @@
                     <h4>تعداد کل تراکنش‌ها</h4>
                     <p id="stats-total-transactions">۰</p>
                 </div>
+                <div class="stat-box">
+                    <h4>سود کل (فیلتر شده)</h4>
+                    <p id="stats-total-profit">۰ تومان</p>
+                </div>
             </div>
-            <div class="report-table-container">
+            <div id="report-table-container" class="report-table-container">
                 <table class="history-table">
                     <thead>
                         <tr>
@@ -129,6 +142,7 @@
                             <th>مدت زمان</th>
                             <th>نحوه پرداخت</th>
                             <th>مبلغ کل</th>
+                            <th>سود</th>
                             <th>عملیات</th>
                         </tr>
                     </thead>
@@ -136,6 +150,9 @@
                         <!-- History rows will be injected here -->
                     </tbody>
                 </table>
+            </div>
+            <div id="report-chart-container" class="report-chart-container" style="display: none;">
+                <canvas id="report-chart"></canvas>
             </div>
         </div>
     </div>
@@ -219,6 +236,48 @@
                 <!-- Product list will be rendered here -->
             </div>
             <button id="confirm-add-products-btn">تایید و افزودن</button>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal" style="display:none;">
+        <div class="modal-content large">
+            <span class="close-btn">&times;</span>
+            <h2>راهنمای نرم‌افزار</h2>
+            <div class="help-content">
+                <h3><i class="fas fa-desktop"></i> مدیریت سیستم‌ها</h3>
+                <ul>
+                    <li><strong>افزودن سیستم:</strong> با کلیک روی دکمه "افزودن سیستم"، می‌توانید دستگاه جدید با نام و نرخ ساعتی دلخواه تعریف کنید.</li>
+                    <li><strong>حالت پیش‌پرداخت:</strong> اگر هنگام افزودن سیستم، "ساعت پایان" را مشخص کنید، تایمر به صورت معکوس (پیش‌پرداخت) کار خواهد کرد و با نزدیک شدن به اتمام زمان، به شما هشدار می‌دهد.</li>
+                    <li><strong>ویرایش سیستم:</strong> با کلیک روی آیکون <i class="fas fa-pencil-alt"></i> روی هر کارت، می‌توانید نام، نرخ، گروه و حتی زمان سپری شده را ویرایش کنید.</li>
+                     <li><strong>فیلتر بر اساس گروه:</strong> از دکمه‌های بالای لیست سیستم‌ها برای نمایش یک گروه خاص (مثلا VIP) یا همه سیستم‌ها استفاده کنید.</li>
+                </ul>
+
+                <h3><i class="fas fa-cogs"></i> کنترل‌های عمومی</h3>
+                 <ul>
+                    <li><strong>توقف و شروع همگانی:</strong> دکمه‌های <i class="fas fa-pause-circle"></i> و <i class="fas fa-play-circle"></i> در هدر به شما اجازه می‌دهند تمام سیستم‌های فعال را متوقف یا تمام سیستم‌های متوقف شده را مجددا فعال کنید.</li>
+                </ul>
+
+                <h3><i class="fas fa-cookie-bite"></i> مدیریت محصولات و سود</h3>
+                <ul>
+                    <li><strong>افزودن محصول:</strong> از ستون کناری، محصولات خود را با "قیمت خرید" و "قیمت فروش" وارد کنید.</li>
+                    <li><strong>محاسبه سود:</strong> سیستم به طور خودکار با کسر قیمت خرید از قیمت فروش محصولات و افزودن هزینه بازی، سود هر تراکنش را محاسبه کرده و در گزارشات نمایش می‌دهد.</li>
+                    <li><strong>افزودن محصول به سیستم:</strong> روی هر کارت، با کلیک روی آیکون <i class="fas fa-cart-plus"></i>، می‌توانید محصولات تعریف شده را به فاکتور آن سیستم اضافه کنید.</li>
+                </ul>
+
+                <h3><i class="fas fa-chart-line"></i> گزارشات</h3>
+                <ul>
+                    <li><strong>آمار کلی:</strong> در بخش گزارشات، می‌توانید درآمد و سود کل را بر اساس بازه زمانی دلخواه فیلتر کنید.</li>
+                    <li><strong>چارت تصویری:</strong> با کلیک روی دکمه "نمایش چارت"، می‌توانید نمودار درآمد و سود روزانه را مشاهده کنید.</li>
+                    <li><strong>خروجی CSV:</strong> برای بایگانی یا تحلیل بیشتر، می‌توانید از گزارشات فیلتر شده خروجی CSV بگیرید که در نرم‌افزارهایی مثل Excel قابل استفاده است.</li>
+                </ul>
+
+                <h3><i class="fas fa-save"></i> تنظیمات و پشتیبان‌گیری</h3>
+                <ul>
+                    <li><strong>پشتیبان‌گیری:</strong> به شدت توصیه می‌شود به صورت دوره‌ای (مثلا روزانه) از طریق منوی "تنظیمات" -> "پشتیبان‌گیری" یک نسخه از کل اطلاعات خود را دانلود و در جای امنی ذخیره کنید.</li>
+                    <li><strong>بازیابی اطلاعات:</strong> در صورت نیاز (مثلا هنگام عوض کردن سیستم یا مرورگر)، می‌توانید با استفاده از فایل پشتیبان، کل اطلاعات خود را از طریق دکمه "بازیابی" برگردانید.</li>
+                </ul>
+            </div>
         </div>
     </div>
 
