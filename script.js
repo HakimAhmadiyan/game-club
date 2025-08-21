@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderStations();
             saveState();
         } else {
-            alert('لطفا نام و نرخ ساعتی معتبر وارد کنید.');
+        alert('لطفا نام و نرخ ساعتی معتبر وارد کنید.');
         }
     }
 
@@ -504,6 +504,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (endTimeInput) {
                 const endTimeValue = endTimeInput.value;
                 if (endTimeValue) {
+                    // This is now a countdown station
+                    station.isCountdown = true;
+
                     const now = new Date();
                     const [hours, minutes] = endTimeValue.split(':');
                     const endTime = new Date(station.startTime || Date.now()); // Base on start time if it exists

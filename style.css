@@ -1,11 +1,13 @@
 /* --- General Setup --- */
 :root {
-    /* Color variables will be defined within theme scopes now */
     --accent-blue: #4dabf7;
+    --accent-blue-rgb: 77, 171, 247;
     --accent-blue-hover: #1c7ed6;
     --accent-green: #69db7c;
+    --accent-green-rgb: 105, 219, 124;
     --accent-green-hover: #37b24d;
     --accent-purple: #da77f2;
+    --accent-purple-rgb: 218, 119, 242;
     --accent-purple-hover: #be4bdb;
 }
 
@@ -22,6 +24,7 @@ body, body[data-theme="light"] {
     --text-color: #333;
     --card-bg: rgba(255, 255, 255, 0.6);
     --primary-color: #007bff;
+    --primary-color-rgb: 0, 123, 255;
     --primary-hover: #0056b3;
     --border-color: rgba(255, 255, 255, 0.8);
     --bg-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
@@ -33,6 +36,7 @@ body[data-theme="dark"] {
     --text-color: #f1f1f1;
     --card-bg: rgba(40, 40, 40, 0.5);
     --primary-color: var(--accent-blue);
+    --primary-color-rgb: var(--accent-blue-rgb);
     --primary-hover: var(--accent-blue-hover);
     --border-color: rgba(255, 255, 255, 0.1);
     --bg-image: linear-gradient(to top, #30cfd0 0%, #330867 100%);
@@ -50,14 +54,17 @@ body[data-theme="ultra-dark"] {
 /* Accent Colors for Ultra Dark */
 body[data-theme="ultra-dark"][data-accent="blue"] {
     --primary-color: var(--accent-blue);
+    --primary-color-rgb: var(--accent-blue-rgb);
     --primary-hover: var(--accent-blue-hover);
 }
 body[data-theme="ultra-dark"][data-accent="green"] {
     --primary-color: var(--accent-green);
+    --primary-color-rgb: var(--accent-green-rgb);
     --primary-hover: var(--accent-green-hover);
 }
 body[data-theme="ultra-dark"][data-accent="purple"] {
     --primary-color: var(--accent-purple);
+    --primary-color-rgb: var(--accent-purple-rgb);
     --primary-hover: var(--accent-purple-hover);
 }
 
@@ -634,4 +641,75 @@ body[data-theme="dark"] .stat-box, body[data-theme="ultra-dark"] .stat-box {
 
 body[data-theme="dark"] .history-table thead, body[data-theme="ultra-dark"] .history-table thead {
     background-color: rgba(255,255,255,0.1);
+}
+
+/* --- Improved Form Styling --- */
+
+/* General styles for all inputs and selects in modals and edit views */
+.modal-content input[type="text"],
+.modal-content input[type="number"],
+.modal-content input[type="time"],
+.modal-content input[type="search"],
+.modal-content input[type="date"],
+.modal-content input[type="datetime-local"],
+.modal-content select,
+.station-edit-view input[type="text"],
+.station-edit-view input[type="number"],
+.station-edit-view input[type="time"],
+.station-edit-view select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: rgba(0, 0, 0, 0.2);
+    color: var(--text-color);
+    font-family: 'Vazirmatn', sans-serif;
+    font-size: 1rem;
+    box-sizing: border-box; /* Important for padding and width */
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Specific overrides for light theme to look normal */
+body[data-theme="light"] .modal-content input,
+body[data-theme="light"] .modal-content select,
+body[data-theme="light"] .station-edit-view input,
+body[data-theme="light"] .station-edit-view select {
+    background-color: #fff;
+    border-color: #ccc;
+    color: #333;
+}
+
+/* Focus styles */
+.modal-content input:focus,
+.modal-content select:focus,
+.station-edit-view input:focus,
+.station-edit-view select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+/* Style labels for better visibility */
+.modal-content label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    text-align: right;
+}
+
+/* Remove default arrow for select and add a custom one */
+.modal-content select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23f1f1f1%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: left 1rem center;
+    background-size: 0.8em;
+    padding-left: 2.5rem; /* Make space for arrow */
+}
+
+body[data-theme="light"] .modal-content select {
+     background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23333333%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
 }
