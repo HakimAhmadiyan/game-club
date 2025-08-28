@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmAddStationBtn = document.getElementById('confirm-add-station-btn');
     const pauseAllBtn = document.getElementById('pause-all-btn');
     const resumeAllBtn = document.getElementById('resume-all-btn');
+    const endOfDayBtn = document.getElementById('end-of-day-btn');
     const stationNameInput = document.getElementById('station-name-input');
     const stationRateInput = document.getElementById('station-rate-input');
     const stationStartTimeInput = document.getElementById('station-start-time-input');
@@ -14,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const stationAlarmSound = document.getElementById('station-alarm-sound');
     const themeToggle = document.getElementById('theme-toggle');
     const productsList = document.getElementById('products-list');
+    const sidebarProductSearch = document.getElementById('sidebar-product-search');
     const addProductBtn = document.getElementById('add-product-btn');
     const productNameInput = document.getElementById('product-name-input');
     const productPriceInput = document.getElementById('product-price-input');
@@ -36,6 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportCsvBtn = document.getElementById('export-csv-btn');
     const deleteFilteredBtn = document.getElementById('delete-filtered-btn');
     const toggleChartBtn = document.getElementById('toggle-chart-btn');
+    const deleteSelectedHistoryBtn = document.getElementById('delete-selected-history-btn');
+    const historySelectAll = document.getElementById('history-select-all');
     const reportTableContainer = document.getElementById('report-table-container');
     const reportChartContainer = document.getElementById('report-chart-container');
     const manualEntryBtn = document.getElementById('manual-entry-btn');
@@ -50,6 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsBtn = document.getElementById('settings-btn');
     const settingsModal = document.getElementById('settings-modal');
     const defaultRateInput = document.getElementById('default-rate-input');
+    const alarmVolumeInput = document.getElementById('alarm-volume-input');
+    const customAlarmUpload = document.getElementById('custom-alarm-upload');
+    const groupColorList = document.getElementById('group-color-list');
     const saveSettingsBtn = document.getElementById('save-settings-btn');
     const deleteAllHistoryBtn = document.getElementById('delete-all-history-btn');
     const backupBtn = document.getElementById('backup-btn');
@@ -69,17 +76,72 @@ document.addEventListener('DOMContentLoaded', () => {
         defaultRate: 20000,
         theme: 'light',
         accentColor: 'blue',
+        alarmVolume: 0.8,
+        useCustomAlarm: false,
+        reportFilters: {
+            startDate: '',
+            endDate: '',
+            searchTerm: ''
+        }
     };
     let stations = [];
     let products = [];
     let history = [];
-    let stationGroups = ['عمومی']; // Default group
+    let stationGroups = [{ name: 'عمومی', color: '#4dabf7'}]; // Default group
     let activeGroupFilter = 'all'; // 'all' or a group name
     let nextStationId = 1;
     let nextProductId = 1;
     let nextHistoryId = 1;
     let isFinalizing = false; // Guard to prevent double-firing transactions
     let reportChartInstance = null;
+
+    // --- IndexedDB Helper for Custom Sound ---
+    const dbHelper = {
+        db: null,
+        initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('GameNetDB', 1);
+                request.onerror = (event) => reject('Error opening IndexedDB');
+                request.onsuccess = (event) => {
+                    this.db = event.target.result;
+                    resolve();
+                };
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('customSounds')) {
+                        db.createObjectStore('customSounds', { keyPath: 'id' });
+                    }
+                };
+            });
+        },
+        saveSound(buffer) {
+            return new Promise((resolve, reject) => {
+                if (!this.db) return reject('DB not initialized');
+                const transaction = this.db.transaction(['customSounds'], 'readwrite');
+                const store = transaction.objectStore('customSounds');
+                const request = store.put({ id: 'customAlarm', sound: buffer });
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = (event) => reject('Error saving sound');
+            });
+        },
+        loadSound() {
+            return new Promise((resolve, reject) => {
+                if (!this.db) return reject('DB not initialized');
+                const transaction = this.db.transaction(['customSounds'], 'readonly');
+                const store = transaction.objectStore('customSounds');
+                const request = store.get('customAlarm');
+                request.onsuccess = (event) => {
+                    if (event.target.result) {
+                        resolve(event.target.result.sound);
+                    } else {
+                        resolve(null); // No sound found
+                    }
+                };
+                request.onerror = (event) => reject('Error loading sound');
+            });
+        }
+    };
+
 
     // --- Functions ---
 
@@ -116,8 +178,19 @@ document.addEventListener('DOMContentLoaded', () => {
             Array.prototype.push.apply(history, state.history || []);
 
             stationGroups.length = 0;
-            Array.prototype.push.apply(stationGroups, state.stationGroups || ['عمومی']);
-            if (stationGroups.length === 0) stationGroups.push('عمومی'); // Ensure default exists
+            // Ensure loaded groups are in the correct object format, migrating old data if necessary
+            const loadedGroups = state.stationGroups || [{ name: 'عمومی', color: '#4dabf7'}];
+            loadedGroups.forEach(group => {
+                if (typeof group === 'string') {
+                    // This is old data, convert it
+                    stationGroups.push({ name: group, color: '#4dabf7' });
+                } else {
+                    stationGroups.push(group);
+                }
+            });
+            if (stationGroups.length === 0) {
+                 stationGroups.push({ name: 'عمومی', color: '#4dabf7'});
+            }
 
             nextStationId = state.nextStationId || 1;
             nextProductId = state.nextProductId || 1;
@@ -165,10 +238,15 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function renderStations() {
         stationsContainer.innerHTML = '';
-        const groupsToRender = activeGroupFilter === 'all' ? stationGroups : [activeGroupFilter];
+        const groupsToRender = activeGroupFilter === 'all'
+            ? stationGroups
+            : stationGroups.filter(g => g.name === activeGroupFilter);
 
-        groupsToRender.forEach(group => {
-            const stationsInGroup = stations.filter(s => s.group === group);
+        groupsToRender.forEach(groupObj => {
+            const groupName = groupObj.name;
+            const groupColor = groupObj.color || '#4dabf7';
+
+            const stationsInGroup = stations.filter(s => s.group === groupName);
             // In filter mode, we might want to show the group header even if it's empty,
             // but for now, let's keep the existing behavior.
             if (stationsInGroup.length === 0 && activeGroupFilter !== 'all') {
@@ -180,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const groupContainer = document.createElement('div');
             groupContainer.className = 'station-group';
-            groupContainer.innerHTML = `<h2 class="group-title">${group}</h2>`;
+            groupContainer.innerHTML = `<h2 class="group-title" style="border-bottom-color: ${groupColor}; color: ${groupColor}">${groupName}</h2>`;
 
             const groupCardsContainer = document.createElement('div');
             groupCardsContainer.className = 'stations-container-inner';
@@ -207,6 +285,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <input type="number" class="edit-station-rate" value="${station.rate}" placeholder="نرخ ساعتی (تومان)">
                             <label>زمان سپری شده (hh:mm:ss):</label>
                             <input type="text" class="edit-station-elapsed-time" value="${formatTime(station.elapsedTime)}">
+                            <label>یادداشت:</label>
+                            <textarea class="edit-station-notes">${station.notes}</textarea>
                             <label>ساعت پایان:</label>
                             <input type="time" class="edit-station-endtime" value="${endTimeValue}">
                             <label>گروه:</label>
@@ -216,6 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <option value="none" ${station.alarmSound === 'none' ? 'selected' : ''}>بی‌صدا</option>
                                 <option value="beep" ${station.alarmSound === 'beep' ? 'selected' : ''}>بیپ</option>
                                 <option value="bell" ${station.alarmSound === 'bell' ? 'selected' : ''}>زنگ</option>
+                                <option value="tts" ${station.alarmSound === 'tts' ? 'selected' : ''}>هشدار صوتی</option>
                             </select>
                             <div class="controls">
                                 <button class="save-station-btn" title="ذخیره"><i class="fas fa-save"></i></button>
@@ -249,17 +330,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const productsCost = station.products.reduce((total, p) => total + p.price, 0);
                     const totalCost = timeCost + productsCost;
                     const progressPercentage = station.isCountdown ? (timeToDisplay / station.duration) * 100 : 0;
+                    const startTimeDisplay = station.originalStartTime ? `<p><small>زمان شروع: ${new Date(station.originalStartTime).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}</small></p>` : '';
+                    const notesDisplay = station.notes ? `<div class="station-notes-display"><strong>یادداشت:</strong> ${station.notes}</div>` : '';
 
                     stationCard.innerHTML = `
                         <h3>${station.name} ${station.isCountdown ? '(پیش‌پرداخت)' : ''}</h3>
                         <p><small>نرخ: ${station.rate.toLocaleString('fa-IR')} تومان/ساعت</small></p>
+                        ${startTimeDisplay}
                         <div class="time-display">${formattedTime}</div>
                         ${station.isCountdown ? `<div class="progress-bar-container"><div class="progress-bar-inner" style="width: ${progressPercentage}%;"></div></div>` : ''}
                         <div class="cost-display">${totalCost.toLocaleString('fa-IR')} تومان</div>
+                        ${notesDisplay}
                         <div class="station-products">
                             <small>محصولات خریداری شده:</small>
                             <ul class="purchased-products-list">
-                                ${station.products.map(p => `<li>${p.name} (${p.price.toLocaleString('fa-IR')} تومان)</li>`).join('') || '<li>-</li>'}
+                                ${station.products.map((p, index) => `<li><span>${p.name} (${p.price.toLocaleString('fa-IR')} تومان)</span><button class="remove-station-product-btn icon-btn" data-product-index="${index}" title="حذف این محصول"><i class="fas fa-times"></i></button></li>`).join('') || '<li>-</li>'}
                             </ul>
                         </div>
                         <div class="controls">
@@ -286,16 +371,16 @@ document.addEventListener('DOMContentLoaded', () => {
         stationGroupSelect.innerHTML = '';
         stationGroups.forEach(group => {
             const option = document.createElement('option');
-            option.value = group;
-            option.textContent = group;
+            option.value = group.name;
+            option.textContent = group.name;
             stationGroupSelect.appendChild(option);
         });
     }
 
     function addNewGroup() {
         const newGroupName = newGroupNameInput.value.trim();
-        if (newGroupName && !stationGroups.includes(newGroupName)) {
-            stationGroups.push(newGroupName);
+        if (newGroupName && !stationGroups.some(g => g.name === newGroupName)) {
+            stationGroups.push({ name: newGroupName, color: '#ffffff' }); // Default new groups to white
             populateGroupSelect();
             stationGroupSelect.value = newGroupName; // Select the new group
             newGroupNameInput.value = '';
@@ -346,6 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name,
                 rate,
                 startTime: null,
+                originalStartTime: startTimeValue ? new Date(startTimeValue).getTime() : null,
                 elapsedTime: elapsedTime, // Use calculated elapsed time
                 products: [],
                 isEditing: false,
@@ -354,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alarmSound: stationAlarmSound.value,
                 alarmPlayed: false,
                 group: stationGroupSelect.value,
+                notes: ''
             };
             stations.push(newStation);
             stationNameInput.value = '';
@@ -371,19 +458,47 @@ document.addEventListener('DOMContentLoaded', () => {
      * Renders the list of available products in the sidebar
      */
     function renderProducts() {
+        const searchTerm = sidebarProductSearch.value.toLowerCase();
+        const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm));
+
         productsList.innerHTML = '';
-        if (products.length === 0) {
-            productsList.innerHTML = '<p>محصولی برای نمایش وجود ندارد.</p>';
+        if (filteredProducts.length === 0) {
+            productsList.innerHTML = '<p>محصولی یافت نشد.</p>';
             return;
         }
-        products.forEach(product => {
+        filteredProducts.forEach(product => {
             const productItem = document.createElement('div');
             productItem.className = 'product-item';
-            const purchasePriceText = product.purchasePrice > 0 ? `خرید: ${(product.purchasePrice || 0).toLocaleString('fa-IR')}` : '';
-            productItem.innerHTML = `
-                <span class="product-info">${product.name} - فروش: ${product.price.toLocaleString('fa-IR')} ${purchasePriceText ? `(${purchasePriceText})` : ''}</span>
-                <button class="delete-product-btn icon-btn" data-id="${product.id}" title="حذف محصول"><i class="fas fa-trash-alt"></i></button>
-            `;
+            productItem.dataset.id = product.id;
+
+            if (product.isEditing) {
+                productItem.innerHTML = `
+                    <div class="product-edit-view">
+                        <input type="text" class="edit-product-name" value="${product.name}" placeholder="نام محصول">
+                        <input type="number" class="edit-product-purchase-price" value="${product.purchasePrice}" placeholder="قیمت خرید">
+                        <input type="number" class="edit-product-price" value="${product.price}" placeholder="قیمت فروش">
+                        <div class="product-edit-controls">
+                            <button class="save-product-btn icon-btn" title="ذخیره"><i class="fas fa-save"></i></button>
+                            <button class="cancel-edit-product-btn icon-btn" title="لغو"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const purchasePriceText = product.purchasePrice > 0 ? `خرید: ${(product.purchasePrice || 0).toLocaleString('fa-IR')}` : '';
+                let marginText = '';
+                if (product.price > 0 && product.purchasePrice > 0) {
+                    const margin = ((product.price - product.purchasePrice) / product.price) * 100;
+                    marginText = ` <span class="profit-margin">(سود: ${margin.toFixed(0)}%)</span>`;
+                }
+
+                productItem.innerHTML = `
+                    <span class="product-info">${product.name} - فروش: ${product.price.toLocaleString('fa-IR')} ${purchasePriceText ? `(${purchasePriceText})` : ''}${marginText}</span>
+                    <div class="product-controls">
+                        <button class="edit-product-btn icon-btn" title="ویرایش محصول"><i class="fas fa-pencil-alt"></i></button>
+                        <button class="delete-product-btn icon-btn" title="حذف محصول"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                `;
+            }
             productsList.appendChild(productItem);
         });
     }
@@ -401,7 +516,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: nextProductId++,
                 name,
                 price,
-                purchasePrice
+                purchasePrice,
+                isEditing: false
             };
             products.push(newProduct);
             productNameInput.value = '';
@@ -411,6 +527,29 @@ document.addEventListener('DOMContentLoaded', () => {
             saveState();
         } else {
             alert('لطفا نام، قیمت فروش و قیمت خرید معتبر برای محصول وارد کنید.');
+        }
+    }
+
+    function saveProductEdits(productId) {
+        const product = products.find(p => p.id === productId);
+        const productItem = productsList.querySelector(`.product-item[data-id='${productId}']`);
+        if (!product || !productItem) return;
+
+        const newName = productItem.querySelector('.edit-product-name').value.trim();
+        const newPrice = parseFloat(productItem.querySelector('.edit-product-price').value);
+        const newPurchasePrice = parseFloat(productItem.querySelector('.edit-product-purchase-price').value) || 0;
+
+        if (newName && !isNaN(newPrice) && newPrice > 0 && newPurchasePrice >= 0) {
+            product.name = newName;
+            product.price = newPrice;
+            product.purchasePrice = newPurchasePrice;
+            product.isEditing = false;
+            renderProducts();
+            // We need to re-render stations too, in case the product was in use and its name/price changed
+            renderStations();
+            saveState();
+        } else {
+            alert('لطفا نام و قیمت‌های معتبر وارد کنید.');
         }
     }
 
@@ -469,7 +608,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!button) return; // Ignore clicks that are not on buttons inside the card
 
-        if (button.classList.contains('start-btn')) {
+        if (button.classList.contains('remove-station-product-btn')) {
+            const productIndex = parseInt(button.dataset.productIndex, 10);
+            station.products.splice(productIndex, 1);
+            renderStations();
+            saveState();
+        } else if (button.classList.contains('start-btn')) {
             startTimer(station);
         } else if (button.classList.contains('stop-btn')) {
             stopTimer(station);
@@ -499,7 +643,6 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function saveStationEdits(stationId) {
         const station = stations.find(s => s.id === stationId);
-        // Find the card in the DOM at the moment of saving to get fresh references
         const stationCard = stationsContainer.querySelector(`.station-card[data-id='${stationId}']`);
 
         if (!station || !stationCard) {
@@ -510,6 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newName = stationCard.querySelector('.edit-station-name').value.trim();
         const newRate = parseFloat(stationCard.querySelector('.edit-station-rate').value);
         const newElapsedTimeValue = stationCard.querySelector('.edit-station-elapsed-time').value;
+        const notesValue = stationCard.querySelector('.edit-station-notes').value.trim();
         const endTimeValue = stationCard.querySelector('.edit-station-endtime').value;
         const alarmSoundValue = stationCard.querySelector('.edit-station-alarm').value;
         const groupValue = stationCard.querySelector('.edit-station-group').value;
@@ -520,6 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
             station.name = newName;
             station.rate = newRate;
             station.elapsedTime = newElapsedTime;
+            station.notes = notesValue;
             station.alarmSound = alarmSoundValue;
             station.group = groupValue;
 
@@ -581,6 +726,9 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function startTimer(station, silent = false) {
         if (station.startTime) return;
+        if (!station.originalStartTime) {
+            station.originalStartTime = Date.now();
+        }
         station.alarmPlayed = false; // Reset alarm state
         station.startTime = Date.now();
         if (!silent) {
@@ -621,7 +769,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 stopTimer(station, true); // Stop silently
             }
             station.elapsedTime = 0;
+            station.originalStartTime = null;
             station.products = [];
+            station.notes = '';
             renderStations();
             saveState();
         }
@@ -770,6 +920,11 @@ document.addEventListener('DOMContentLoaded', () => {
      * Applies current filters and re-renders the report
      */
     function applyReportFilters() {
+        // First, ensure the inputs reflect the saved settings
+        filterStartDate.value = settings.reportFilters.startDate || '';
+        filterEndDate.value = settings.reportFilters.endDate || '';
+        historySearchInput.value = settings.reportFilters.searchTerm || '';
+
         const filteredHistory = getFilteredHistory();
         renderReport(filteredHistory);
     }
@@ -805,6 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }[item.paymentMethod] || item.paymentMethod;
 
             row.innerHTML = `
+                <td><input type="checkbox" class="history-item-checkbox" data-history-id="${item.id}"></td>
                 <td>${item.stationName}</td>
                 <td>${new Date(item.date).toLocaleString('fa-IR')}</td>
                 <td>${formatTime(item.duration)}</td>
@@ -915,9 +1071,43 @@ document.addEventListener('DOMContentLoaded', () => {
      * Plays a sound using the Web Audio API
      * @param {string} soundName - The name of the sound to play ('beep', 'bell', etc.)
      */
-    function playSound(soundName) {
-        if (soundName === 'none' || !window.AudioContext) return;
+    async function playSound(soundName, stationName = '') {
+        if (soundName === 'none') return;
 
+        // Priority 1: Custom Sound
+        if (settings.useCustomAlarm) {
+            try {
+                const soundBuffer = await dbHelper.loadSound();
+                if (soundBuffer) {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const decodedBuffer = await audioCtx.decodeAudioData(soundBuffer.slice(0)); // slice(0) to copy
+                    const source = audioCtx.createBufferSource();
+                    const gainNode = audioCtx.createGain();
+
+                    source.buffer = decodedBuffer;
+                    gainNode.gain.value = settings.alarmVolume;
+
+                    source.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    source.start(0);
+                    return; // Exit after playing custom sound
+                }
+            } catch (error) {
+                console.error("Failed to play custom alarm:", error);
+                // Fallback to default sounds
+            }
+        }
+
+        // Priority 2: Text-to-Speech
+        if (soundName === 'tts' && 'speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(`وقتِ ${stationName} تمام شد`);
+            utterance.lang = 'fa-IR';
+            utterance.volume = settings.alarmVolume;
+            window.speechSynthesis.speak(utterance);
+            return;
+        }
+
+        if (!window.AudioContext) return;
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let repeatCount = 0;
         const maxRepeats = 6; // Total of 7 beeps for a more insistent alarm
@@ -940,8 +1130,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime);
             }
 
-            // Increased gain for more volume and longer beep duration
-            gainNode.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            // Use volume from settings
+            gainNode.gain.setValueAtTime(settings.alarmVolume, audioCtx.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
             oscillator.start(audioCtx.currentTime);
             oscillator.stop(audioCtx.currentTime + 0.2);
@@ -1006,11 +1196,32 @@ document.addEventListener('DOMContentLoaded', () => {
     closeModalBtns.forEach(btn => btn.addEventListener('click', (e) => hideModal(e.target.closest('.modal'))));
     confirmAddStationBtn.addEventListener('click', addStation);
     stationsContainer.addEventListener('click', handleStationClick);
+
+    sidebarProductSearch.addEventListener('input', () => renderProducts());
+
     addProductBtn.addEventListener('click', addProduct);
     productsList.addEventListener('click', (e) => {
-        if (e.target.classList.contains('delete-product-btn')) {
-            const productId = parseInt(e.target.dataset.id);
+        const button = e.target.closest('button');
+        if (!button) return;
+
+        const productItem = e.target.closest('.product-item');
+        const productId = parseInt(productItem.dataset.id, 10);
+        const product = products.find(p => p.id === productId);
+
+        if (!product) return;
+
+        if (button.classList.contains('delete-product-btn')) {
             deleteProduct(productId);
+        } else if (button.classList.contains('edit-product-btn')) {
+            // Ensure only one item is editable at a time for simplicity
+            products.forEach(p => p.isEditing = false);
+            product.isEditing = true;
+            renderProducts();
+        } else if (button.classList.contains('cancel-edit-product-btn')) {
+            product.isEditing = false;
+            renderProducts();
+        } else if (button.classList.contains('save-product-btn')) {
+            saveProductEdits(productId);
         }
     });
     payCashBtn.addEventListener('click', () => {
@@ -1033,14 +1244,55 @@ document.addEventListener('DOMContentLoaded', () => {
         showModal(reportModal);
     });
 
+    endOfDayBtn.addEventListener('click', () => {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayString = `${yyyy}-${mm}-${dd}`;
+
+        // Set the filters to today's date
+        settings.reportFilters.startDate = todayString;
+        settings.reportFilters.endDate = todayString;
+        settings.reportFilters.searchTerm = '';
+        saveState();
+
+        // Apply filters and show the modal
+        applyReportFilters();
+        showModal(reportModal);
+
+        // Prompt for backup
+        if (confirm('گزارش روزانه آماده شد. آیا مایل به پشتیبان‌گیری از اطلاعات هستید؟')) {
+            backupData();
+        }
+    });
+
     manualEntryBtn.addEventListener('click', openManualEntryModal);
 
     helpBtn.addEventListener('click', () => showModal(helpModal));
+
+    function renderGroupColorSettings() {
+        groupColorList.innerHTML = '';
+        stationGroups.forEach(group => {
+            const item = document.createElement('div');
+            item.className = 'group-color-item';
+            item.innerHTML = `
+                <span>${group.name}</span>
+                <input type="color" data-group-name="${group.name}" value="${group.color}">
+            `;
+            groupColorList.appendChild(item);
+        });
+    }
 
     settingsBtn.addEventListener('click', () => {
         // Populate settings modal with current values
         defaultRateInput.value = settings.defaultRate;
         document.getElementById('theme-select').value = settings.theme;
+        alarmVolumeInput.value = settings.alarmVolume;
+        customAlarmUpload.value = '';
+
+        renderGroupColorSettings();
+
         document.querySelectorAll('.color-swatch').forEach(swatch => {
             swatch.classList.toggle('selected', swatch.dataset.color === settings.accentColor);
         });
@@ -1063,14 +1315,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    saveSettingsBtn.addEventListener('click', () => {
+    saveSettingsBtn.addEventListener('click', async () => {
+        // Save group colors
+        groupColorList.querySelectorAll('.group-color-item input').forEach(input => {
+            const groupName = input.dataset.groupName;
+            const group = stationGroups.find(g => g.name === groupName);
+            if (group) {
+                group.color = input.value;
+            }
+        });
+
         const newDefaultRate = parseFloat(defaultRateInput.value);
+        const newAlarmVolume = parseFloat(alarmVolumeInput.value);
+
         if (!isNaN(newDefaultRate) && newDefaultRate >= 0) {
             settings.defaultRate = newDefaultRate;
-            // Theme and accent are already updated in the settings object by their own listeners
+            settings.alarmVolume = newAlarmVolume;
+
+            const file = customAlarmUpload.files[0];
+            if (file) {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    await dbHelper.saveSound(arrayBuffer);
+                    settings.useCustomAlarm = true;
+                    alert('زنگ هشدار سفارشی ذخیره شد.');
+                } catch (error) {
+                    alert('خطا در ذخیره زنگ هشدار.');
+                    console.error(error);
+                }
+            }
+
             saveState();
             hideModal(settingsModal);
-            alert('تنظیمات ذخیره شد.');
         } else {
             alert('لطفا نرخ پیش‌فرض معتبر وارد کنید.');
         }
@@ -1090,10 +1366,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Report filter event listeners
-    filterStartDate.addEventListener('change', applyReportFilters);
-    filterEndDate.addEventListener('change', applyReportFilters);
-    historySearchInput.addEventListener('input', applyReportFilters);
+    // Report filter event listeners that also save the filter state
+    filterStartDate.addEventListener('change', (e) => {
+        settings.reportFilters.startDate = e.target.value;
+        saveState();
+        applyReportFilters();
+    });
+    filterEndDate.addEventListener('change', (e) => {
+        settings.reportFilters.endDate = e.target.value;
+        saveState();
+        applyReportFilters();
+    });
+    historySearchInput.addEventListener('input', (e) => {
+        settings.reportFilters.searchTerm = e.target.value;
+        saveState();
+        applyReportFilters();
+    });
+
 
     toggleChartBtn.addEventListener('click', () => {
         const isChartHidden = reportChartContainer.style.display === 'none';
@@ -1109,12 +1398,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     historyTableBody.addEventListener('click', (e) => {
-        const deleteBtn = e.target.closest('.delete-history-btn');
-        if (deleteBtn) {
-            const historyId = parseInt(deleteBtn.dataset.id, 10);
+        if (e.target.classList.contains('delete-history-btn')) {
+            const historyId = parseInt(e.target.closest('button').dataset.id, 10);
             deleteHistoryEntry(historyId);
         }
+        if (e.target.classList.contains('history-item-checkbox')) {
+            updateDeleteSelectedButtonVisibility();
+        }
     });
+
+    historySelectAll.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        historyTableBody.querySelectorAll('.history-item-checkbox').forEach(checkbox => {
+            checkbox.checked = isChecked;
+        });
+        updateDeleteSelectedButtonVisibility();
+    });
+
+    deleteSelectedHistoryBtn.addEventListener('click', () => {
+        const selectedIds = Array.from(historyTableBody.querySelectorAll('.history-item-checkbox:checked'))
+            .map(cb => parseInt(cb.dataset.historyId, 10));
+
+        if (selectedIds.length === 0) {
+            alert('هیچ موردی برای حذف انتخاب نشده است.');
+            return;
+        }
+
+        if (confirm(`آیا از حذف ${selectedIds.length} مورد انتخاب شده مطمئن هستید؟`)) {
+            history = history.filter(item => !selectedIds.includes(item.id));
+            saveState();
+            applyReportFilters(); // Re-render the report
+            updateDeleteSelectedButtonVisibility(); // Hide button again
+        }
+    });
+
+    function updateDeleteSelectedButtonVisibility() {
+        const anyChecked = historyTableBody.querySelector('.history-item-checkbox:checked');
+        deleteSelectedHistoryBtn.style.display = anyChecked ? 'inline-block' : 'none';
+    }
 
     exportCsvBtn.addEventListener('click', exportToCSV);
     deleteFilteredBtn.addEventListener('click', deleteFilteredHistory);
@@ -1283,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (station.startTime && timeToDisplay === 0 && !station.alarmPlayed) {
                 isTimeUp = true;
-                playSound(station.alarmSound);
+                playSound(station.alarmSound, station.name);
                 station.alarmPlayed = true;
                 stopTimer(station, true);
                 renderStations(); // Re-render once to show stopped state
@@ -1334,9 +1655,9 @@ document.addEventListener('DOMContentLoaded', () => {
         stationGroups.forEach(group => {
             const groupBtn = document.createElement('button');
             groupBtn.className = 'filter-btn';
-            groupBtn.textContent = group;
-            groupBtn.dataset.group = group;
-            if (activeGroupFilter === group) {
+            groupBtn.textContent = group.name;
+            groupBtn.dataset.group = group.name;
+            if (activeGroupFilter === group.name) {
                 groupBtn.classList.add('active');
             }
             stationFiltersContainer.appendChild(groupBtn);
@@ -1741,9 +2062,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Initial Load & Render ---
-    loadState();
-    applyTheme(); // Apply saved theme on startup
-    renderGroupFilters();
-    renderStations();
-    renderProducts();
+    dbHelper.initDB().then(() => {
+        console.log("Database initialized successfully.");
+        loadState();
+        applyTheme(); // Apply saved theme on startup
+        renderGroupFilters();
+        renderStations();
+        renderProducts();
+    }).catch(error => {
+        console.error("Failed to initialize database:", error);
+        alert("خطا در راه اندازی پایگاه داده. زنگ سفارشی کار نخواهد کرد.");
+        // Still load the rest of the app
+        loadState();
+        applyTheme();
+        renderGroupFilters();
+        renderStations();
+        renderProducts();
+    });
 });

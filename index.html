@@ -15,6 +15,7 @@
             <h1>مدیریت گیم‌نت</h1>
             <div class="controls">
                 <button id="report-btn">گزارشات</button>
+                <button id="end-of-day-btn">گزارش پایان روز</button>
                 <button id="add-station-btn">افزودن سیستم</button>
                 <button id="pause-all-btn" title="توقف تمام سیستم‌ها"><i class="fas fa-pause-circle"></i></button>
                 <button id="resume-all-btn" title="شروع مجدد تمام سیستم‌های متوقف"><i class="fas fa-play-circle"></i></button>
@@ -39,6 +40,9 @@
 
         <aside class="sidebar">
             <h2>محصولات</h2>
+            <div class="sidebar-controls">
+                <input type="search" id="sidebar-product-search" placeholder="جستجوی محصول...">
+            </div>
             <div id="products-list">
                 <!-- Products will be listed here -->
             </div>
@@ -69,6 +73,7 @@
                 <option value="none">بی‌صدا</option>
                 <option value="beep">بیپ</option>
                 <option value="bell">زنگ</option>
+                <option value="tts">هشدار صوتی (نام سیستم)</option>
             </select>
             <label for="station-group-select">گروه:</label>
             <div class="group-management">
@@ -115,6 +120,7 @@
                     <button id="export-csv-btn">خروجی CSV</button>
                     <button id="toggle-chart-btn">نمایش چارت</button>
                     <button id="delete-filtered-btn" class="danger-btn">حذف موارد فیلتر شده</button>
+                    <button id="delete-selected-history-btn" class="danger-btn" style="display: none;">حذف انتخاب شده‌ها</button>
                 </div>
             </div>
             <div class="report-stats">
@@ -139,6 +145,7 @@
                 <table class="history-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="history-select-all" title="انتخاب همه"></th>
                             <th>سیستم</th>
                             <th>تاریخ</th>
                             <th>مدت زمان</th>
@@ -211,6 +218,23 @@
                         <button class="color-swatch" data-color="purple" style="background: #da77f2;"></button>
                     </div>
                 </div>
+
+                <hr>
+
+                <div id="group-color-settings">
+                    <label>تنظیم رنگ گروه‌ها:</label>
+                    <div id="group-color-list">
+                        <!-- Group color inputs will be rendered here -->
+                    </div>
+                </div>
+
+                <hr>
+
+                <label for="alarm-volume-input">بلندی صدای هشدار:</label>
+                <input type="range" id="alarm-volume-input" min="0" max="1" step="0.1">
+
+                <label for="custom-alarm-upload">آپلود زنگ هشدار سفارشی (اختیاری):</label>
+                <input type="file" id="custom-alarm-upload" accept="audio/*">
 
                 <hr>
                 <button id="save-settings-btn">ذخیره تنظیمات</button>

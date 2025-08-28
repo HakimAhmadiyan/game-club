@@ -101,6 +101,8 @@ main {
 .sidebar {
     grid-area: sidebar;
     padding: 20px;
+    display: flex;
+    flex-direction: column;
     /* Adding glass effect to the sidebar */
     background: var(--card-bg-light);
     backdrop-filter: blur(10px);
@@ -212,10 +214,26 @@ header {
     margin-bottom: 15px;
 }
 
-.station-products {
+.station-products, .station-notes-display {
     margin-top: 15px;
     text-align: right;
     font-size: 0.9rem;
+}
+
+.station-notes-display {
+    padding: 8px;
+    border-radius: 5px;
+    background-color: rgba(0,0,0,0.05);
+    border-right: 3px solid var(--primary-color);
+    word-break: break-word;
+}
+body[data-theme="dark"] .station-notes-display, body[data-theme="ultra-dark"] .station-notes-display {
+    background-color: rgba(255,255,255,0.08);
+}
+
+.edit-station-notes {
+    min-height: 60px;
+    resize: vertical;
 }
 
 .station-products ul {
@@ -227,7 +245,29 @@ header {
 }
 
 .station-products li {
-    padding: 2px 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 5px;
+    border-radius: 4px;
+}
+
+.station-products li:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+body[data-theme="dark"] .station-products li:hover, body[data-theme="ultra-dark"] .station-products li:hover {
+    background-color: rgba(255,255,255,0.1);
+}
+
+.remove-station-product-btn {
+    color: var(--text-color);
+    opacity: 0.7;
+    padding: 0 5px;
+}
+
+.remove-station-product-btn:hover {
+    color: #dc3545;
+    opacity: 1;
 }
 
 .progress-bar-container {
@@ -262,7 +302,7 @@ header {
     margin-top: 15px;
 }
 
-.station-card .controls button {
+.station-card .controls button, .product-controls button, .product-edit-controls button {
     margin: 0; /* Remove margin as gap is used now */
     width: 40px; /* Fixed width */
     height: 40px; /* Fixed height */
@@ -318,14 +358,14 @@ header {
 }
 
 /* --- Sidebar (Products) --- */
-.sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+.sidebar-controls {
+    padding: 0 10px 10px;
 }
 
 .add-product-form, #products-list {
-    padding: 20px;
+    flex-grow: 1; /* Allows the list to take up available space */
+    overflow-y: auto; /* Adds scrollbar if list is too long */
+    padding: 10px;
 }
 
 #products-list .product-item {
@@ -340,6 +380,36 @@ header {
 
 #products-list .product-item:hover {
     background-color: rgba(0,0,0,0.05);
+}
+
+.product-edit-view {
+    display: flex;
+    width: 100%;
+    gap: 5px;
+    align-items: center;
+}
+
+.product-edit-view input {
+    flex: 1;
+    width: 30%; /* Approx */
+    padding: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 0 !important; /* Override general input margin */
+}
+
+.product-controls, .product-edit-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.profit-margin {
+    font-size: 0.8em;
+    opacity: 0.8;
+    color: var(--accent-green);
+}
+
+body[data-theme="light"] .profit-margin {
+    color: #218838;
 }
 
 .icon-btn {
@@ -481,6 +551,27 @@ body[data-theme="dark"] #pay-card-btn, body[data-theme="ultra-dark"] #pay-card-b
 
 .settings-form label {
     font-weight: bold;
+}
+
+#group-color-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.group-color-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.group-color-item input[type="color"] {
+    width: 50px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    background: none;
 }
 
 .settings-form input[type="number"], .settings-form select {
