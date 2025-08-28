@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resumeAllBtn = document.getElementById('resume-all-btn');
     const stationNameInput = document.getElementById('station-name-input');
     const stationRateInput = document.getElementById('station-rate-input');
+    const stationStartTimeInput = document.getElementById('station-start-time-input');
     const stationEndTimeInput = document.getElementById('station-end-time-input');
     const stationAlarmSound = document.getElementById('station-alarm-sound');
     const themeToggle = document.getElementById('theme-toggle');
@@ -204,6 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="station-edit-view">
                             <input type="text" class="edit-station-name" value="${station.name}" placeholder="نام سیستم">
                             <input type="number" class="edit-station-rate" value="${station.rate}" placeholder="نرخ ساعتی (تومان)">
+                            <label>زمان سپری شده (hh:mm:ss):</label>
+                            <input type="text" class="edit-station-elapsed-time" value="${formatTime(station.elapsedTime)}">
                             <label>ساعت پایان:</label>
                             <input type="time" class="edit-station-endtime" value="${endTimeValue}">
                             <label>گروه:</label>
@@ -308,10 +311,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function addStation() {
         const name = stationNameInput.value.trim();
         const rate = parseFloat(stationRateInput.value);
+        const startTimeValue = stationStartTimeInput.value;
         const endTimeValue = stationEndTimeInput.value;
 
         let duration = 0;
         let isCountdown = false;
+        let elapsedTime = 0;
+
+        // Handle custom start time to calculate initial elapsed time
+        if (startTimeValue) {
+            const startTime = new Date(startTimeValue).getTime();
+            const now = Date.now();
+            if (startTime < now) {
+                elapsedTime = now - startTime;
+            }
+        }
 
         if (endTimeValue) {
             const now = new Date();
@@ -332,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name,
                 rate,
                 startTime: null,
-                elapsedTime: 0,
+                elapsedTime: elapsedTime, // Use calculated elapsed time
                 products: [],
                 isEditing: false,
                 isCountdown: isCountdown,
@@ -474,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
             station.isEditing = false;
             renderStations();
         } else if (button.classList.contains('save-station-btn')) {
-            saveStationEdits(stationId, stationCard);
+            saveStationEdits(stationId);
         }
     }
 
@@ -483,14 +497,22 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {number} stationId
      * @param {HTMLElement} stationCard
      */
-    function saveStationEdits(stationId, stationCard) {
+    function saveStationEdits(stationId) {
         const station = stations.find(s => s.id === stationId);
+        // Find the card in the DOM at the moment of saving to get fresh references
+        const stationCard = stationsContainer.querySelector(`.station-card[data-id='${stationId}']`);
+
+        if (!station || !stationCard) {
+            alert("خطا: سیستم برای ویرایش یافت نشد.");
+            return;
+        }
+
         const newName = stationCard.querySelector('.edit-station-name').value.trim();
         const newRate = parseFloat(stationCard.querySelector('.edit-station-rate').value);
         const newElapsedTimeValue = stationCard.querySelector('.edit-station-elapsed-time').value;
-        const endTimeInput = stationCard.querySelector('.edit-station-endtime');
-        const alarmSoundInput = stationCard.querySelector('.edit-station-alarm');
-        const groupInput = stationCard.querySelector('.edit-station-group');
+        const endTimeValue = stationCard.querySelector('.edit-station-endtime').value;
+        const alarmSoundValue = stationCard.querySelector('.edit-station-alarm').value;
+        const groupValue = stationCard.querySelector('.edit-station-group').value;
 
         const newElapsedTime = parseTimeToMs(newElapsedTimeValue);
 
@@ -498,35 +520,28 @@ document.addEventListener('DOMContentLoaded', () => {
             station.name = newName;
             station.rate = newRate;
             station.elapsedTime = newElapsedTime;
-            station.alarmSound = alarmSoundInput.value;
-            station.group = groupInput.value;
+            station.alarmSound = alarmSoundValue;
+            station.group = groupValue;
 
-            if (endTimeInput) {
-                const endTimeValue = endTimeInput.value;
-                if (endTimeValue) {
-                    // This is now a countdown station
-                    station.isCountdown = true;
+            if (endTimeValue) {
+                station.isCountdown = true;
+                const now = new Date();
+                const [hours, minutes] = endTimeValue.split(':');
+                const endTime = new Date(station.startTime || Date.now());
+                endTime.setHours(hours, minutes, 0, 0);
+                if (endTime < now) endTime.setDate(endTime.getDate() + 1);
 
-                    const now = new Date();
-                    const [hours, minutes] = endTimeValue.split(':');
-                    const endTime = new Date(station.startTime || Date.now()); // Base on start time if it exists
-                    endTime.setHours(hours, minutes, 0, 0);
-                    if (endTime < now) endTime.setDate(endTime.getDate() + 1);
-
-                    // Recalculate duration based on original start time and new end time
-                    const originalStartTime = new Date(station.startTime || Date.now());
-                    station.duration = endTime.getTime() - originalStartTime.getTime();
-                } else {
-                    // Switched from countdown to count-up
-                    station.isCountdown = false;
-                }
+                const originalStartTime = new Date(station.startTime || Date.now());
+                station.duration = endTime.getTime() - originalStartTime.getTime();
+            } else {
+                station.isCountdown = false;
             }
 
             station.isEditing = false;
             renderStations();
             saveState();
         } else {
-            alert('لطفا نام و نرخ ساعتی معتبر وارد کنید.');
+            alert('خطا: لطفا مقادیر معتبر برای نام، نرخ و زمان سپری شده وارد کنید.');
         }
     }
 
@@ -905,7 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let repeatCount = 0;
-        const maxRepeats = 4; // Total of 5 beeps
+        const maxRepeats = 6; // Total of 7 beeps for a more insistent alarm
         const interval = 400; // ms between beeps
 
         function playBeep() {
@@ -925,10 +940,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime);
             }
 
-            gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15);
+            // Increased gain for more volume and longer beep duration
+            gainNode.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
             oscillator.start(audioCtx.currentTime);
-            oscillator.stop(audioCtx.currentTime + 0.15);
+            oscillator.stop(audioCtx.currentTime + 0.2);
 
             if (repeatCount < maxRepeats) {
                 repeatCount++;
@@ -947,6 +963,12 @@ document.addEventListener('DOMContentLoaded', () => {
     addStationBtn.addEventListener('click', () => {
         // Pre-fill the rate input with the default rate from settings
         stationRateInput.value = settings.defaultRate;
+
+        // Set default start time to now
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
+        stationStartTimeInput.value = now.toISOString().slice(0,16);
+
         populateGroupSelect();
         showModal(addStationModal);
     });

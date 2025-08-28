@@ -60,7 +60,9 @@
             <h2>افزودن سیستم جدید</h2>
             <input type="text" id="station-name-input" placeholder="نام سیستم (مثلا: PC 1)">
             <input type="number" id="station-rate-input" placeholder="نرخ هر ساعت (تومان)">
-            <label for="station-end-time-input">ساعت پایان (برای حالت پیش‌پرداخت):</label>
+            <label for="station-start-time-input">زمان شروع (اختیاری):</label>
+            <input type="datetime-local" id="station-start-time-input">
+            <label for="station-end-time-input">زمان پایان (برای حالت پیش‌پرداخت):</label>
             <input type="time" id="station-end-time-input">
             <label for="station-alarm-sound">صدای هشدار:</label>
             <select id="station-alarm-sound">
