@@ -381,10 +381,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const newGroupName = newGroupNameInput.value.trim();
         if (newGroupName && !stationGroups.some(g => g.name === newGroupName)) {
             stationGroups.push({ name: newGroupName, color: '#ffffff' }); // Default new groups to white
+
+            // Re-render everything to ensure all UI parts are in sync
+            renderStations();
+            renderGroupFilters();
+
+            // Also update the select in the modal for the next time it's opened
             populateGroupSelect();
-            stationGroupSelect.value = newGroupName; // Select the new group
+            stationGroupSelect.value = newGroupName;
+
             newGroupNameInput.value = '';
-            renderGroupFilters(); // Update filters when a new group is added
             saveState();
         } else if (!newGroupName) {
             alert('لطفا یک نام برای گروه جدید وارد کنید.');
