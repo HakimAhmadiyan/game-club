@@ -683,6 +683,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             station.isEditing = false;
+            activeGroupFilter = 'all'; // Reset filter to prevent edited station from disappearing
+            renderGroupFilters();
             renderStations();
             saveState();
         } else {
