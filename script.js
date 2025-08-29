@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const pauseAllBtn = document.getElementById('pause-all-btn');
     const resumeAllBtn = document.getElementById('resume-all-btn');
     const endOfDayBtn = document.getElementById('end-of-day-btn');
-    const debugBtn = document.getElementById('debug-btn');
     const stationNameInput = document.getElementById('station-name-input');
     const stationRateInput = document.getElementById('station-rate-input');
     const stationStartTimeInput = document.getElementById('station-start-time-input');
@@ -278,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         endTimeValue = `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
                     }
 
-                    const groupOptions = stationGroups.map(g => `<option value="${g}" ${g === station.group ? 'selected' : ''}>${g}</option>`).join('');
+                    const groupOptions = stationGroups.map(g => `<option value="${g.name}" ${g.name === station.group ? 'selected' : ''}>${g.name}</option>`).join('');
 
                     stationCard.innerHTML = `
                         <div class="station-edit-view">
@@ -1725,14 +1724,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     manualEntryBtn.addEventListener('click', openManualEntryModal);
-
-    debugBtn.addEventListener('click', () => {
-        console.log("--- DEBUG STATE ---");
-        console.log("STATIONS:", JSON.stringify(stations, null, 2));
-        console.log("STATION GROUPS:", JSON.stringify(stationGroups, null, 2));
-        console.log("ACTIVE FILTER:", activeGroupFilter);
-        alert("اطلاعات دیباگ در کنسول مرورگر چاپ شد.");
-    });
 
     settingsBtn.addEventListener('click', () => {
         // Populate settings modal with current values
