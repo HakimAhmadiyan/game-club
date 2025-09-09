@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let nextHistoryId = 1;
     let isFinalizing = false; // Guard to prevent double-firing transactions
     let reportChartInstance = null;
+    let lastResetClick = { id: null, time: 0 };
 
     // --- IndexedDB Helper for Custom Sound ---
     const dbHelper = {
@@ -624,7 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (button.classList.contains('stop-btn')) {
             stopTimer(station);
         } else if (button.classList.contains('reset-btn')) {
-            resetStation(station);
+            handleResetClick(station);
         } else if (button.classList.contains('add-product-to-station-btn')) {
             openAddProductToStationModal(station);
         } else if (button.classList.contains('invoice-btn')) {
@@ -771,18 +772,49 @@ document.addEventListener('DOMContentLoaded', () => {
      * Resets a station's timer and products after confirmation.
      * @param {object} station
      */
-    function resetStation(station) {
-        if (confirm(`آیا از ریست کردن سیستم «${station.name}» مطمئن هستید؟ تمام زمان و محصولات این سیستم پاک خواهد شد.`)) {
+    function handleResetClick(station) {
+        const now = Date.now();
+        if (now - lastResetClick.time < 400 && lastResetClick.id === station.id) {
+            // Double-click detected: Soft reset (clear countdown)
+            station.isCountdown = false;
+            station.duration = 0;
             if (station.startTime) {
-                stopTimer(station, true); // Stop silently
+                stopTimer(station, true);
             }
-            station.elapsedTime = 0;
-            station.originalStartTime = null;
-            station.products = [];
-            station.notes = '';
             renderStations();
             saveState();
+            // Reset the click tracker
+            lastResetClick = { id: null, time: 0 };
+        } else {
+            // First click: set the tracker
+            lastResetClick = { id: station.id, time: now };
+            // Optional: provide feedback for single click, but for now we just wait for a potential double click.
+            // The full reset will be handled by a different interaction, or we can add a long-press or separate button.
+            // For now, let's make single-click do nothing but set the trap for a double-click.
+            // The user also requested a full reset, so let's keep the confirm but maybe after a delay.
+            // A simpler UX: single-click confirms full reset, double-click just resets time.
+            if (confirm(`برای ریست کامل این سیستم «${station.name}» تایید را بزنید. برای ریست کردن فقط زمان پایان (حالت پیش پرداخت)، این دکمه را دوباره سریعا فشار دهید (دابل کلیک).`)) {
+                fullResetStation(station);
+            }
         }
+    }
+
+    function fullResetStation(station) {
+        if (station.startTime) {
+            stopTimer(station, true); // Stop silently
+        }
+        station.elapsedTime = 0;
+        station.originalStartTime = null;
+        station.products = [];
+        station.notes = '';
+        renderStations();
+        saveState();
+    }
+
+    function resetStation(station) {
+        // This function is now a dispatcher. Let's refactor the logic into handleResetClick
+        // For simplicity, let's rename fullResetStation to resetStation and call the new handler
+        handleResetClick(station);
     }
 
 
@@ -891,7 +923,8 @@ document.addEventListener('DOMContentLoaded', () => {
             totalProfit,
             paymentMethod,
             products: station.products,
-            duration: station.isCountdown ? station.duration : station.elapsedTime
+            duration: station.isCountdown ? station.duration : station.elapsedTime,
+            isEditing: false
         };
         history.push(historyRecord);
 
@@ -967,16 +1000,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 transfer: 'کارت به کارت'
             }[item.paymentMethod] || item.paymentMethod;
 
-            row.innerHTML = `
-                <td><input type="checkbox" class="history-item-checkbox" data-history-id="${item.id}"></td>
-                <td>${item.stationName}</td>
-                <td>${new Date(item.date).toLocaleString('fa-IR')}</td>
-                <td>${formatTime(item.duration)}</td>
-                <td>${paymentMethodText}</td>
-                <td>${item.totalCost.toLocaleString('fa-IR')} تومان</td>
-                <td>${(item.totalProfit || 0).toLocaleString('fa-IR')} تومان</td>
-                <td><button class="delete-history-btn" data-id="${item.id}" title="حذف این رکورد"><i class="fas fa-trash-alt"></i></button></td>
-            `;
+            if (item.isEditing) {
+                row.innerHTML = `
+                    <td></td>
+                    <td>${item.stationName}</td>
+                    <td>${new Date(item.date).toLocaleString('fa-IR')}</td>
+                    <td><input type="text" class="edit-history-duration" value="${formatTime(item.duration)}"></td>
+                    <td>${paymentMethodText}</td>
+                    <td><input type="number" class="edit-history-cost" value="${item.totalCost}"> تومان</td>
+                    <td>${(item.totalProfit || 0).toLocaleString('fa-IR')} تومان</td>
+                    <td class="history-actions">
+                        <button class="save-history-btn icon-btn" data-history-id="${item.id}" title="ذخیره"><i class="fas fa-save"></i></button>
+                        <button class="cancel-edit-history-btn icon-btn" data-history-id="${item.id}" title="لغو"><i class="fas fa-times"></i></button>
+                    </td>
+                `;
+            } else {
+                row.innerHTML = `
+                    <td><input type="checkbox" class="history-item-checkbox" data-history-id="${item.id}"></td>
+                    <td>${item.stationName}</td>
+                    <td>${new Date(item.date).toLocaleString('fa-IR')}</td>
+                    <td>${formatTime(item.duration)}</td>
+                    <td>${paymentMethodText}</td>
+                    <td>${item.totalCost.toLocaleString('fa-IR')} تومان</td>
+                    <td>${(item.totalProfit || 0).toLocaleString('fa-IR')} تومان</td>
+                    <td class="history-actions">
+                        <button class="edit-history-btn icon-btn" data-history-id="${item.id}" title="ویرایش رکورد"><i class="fas fa-pencil-alt"></i></button>
+                        <button class="delete-history-btn icon-btn" data-history-id="${item.id}" title="حذف این رکورد"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                `;
+            }
             historyTableBody.appendChild(row);
         });
 
@@ -1405,11 +1457,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    historyTableBody.addEventListener('click', (e) => {
-        if (e.target.classList.contains('delete-history-btn')) {
-            const historyId = parseInt(e.target.closest('button').dataset.id, 10);
-            deleteHistoryEntry(historyId);
+    function saveHistoryEdits(historyId) {
+        const item = history.find(h => h.id === historyId);
+        const row = historyTableBody.querySelector(`button[data-history-id='${historyId}']`).closest('tr');
+        if (!item || !row) return;
+
+        const newDurationValue = row.querySelector('.edit-history-duration').value;
+        const newCostValue = parseFloat(row.querySelector('.edit-history-cost').value);
+
+        const newDuration = parseTimeToMs(newDurationValue);
+
+        if (!isNaN(newDuration) && !isNaN(newCostValue) && newCostValue >= 0) {
+            item.duration = newDuration;
+            item.totalCost = newCostValue;
+            // Note: We don't recalculate profit/timeCost here, as this is a manual override.
+            item.isEditing = false;
+            applyReportFilters();
+            saveState();
+        } else {
+            alert('لطفا مقادیر معتبر برای مدت زمان و مبلغ وارد کنید.');
         }
+    }
+
+    historyTableBody.addEventListener('click', (e) => {
+        const button = e.target.closest('button.icon-btn');
+        if (button) {
+            const historyId = parseInt(button.dataset.historyId, 10);
+            const item = history.find(h => h.id === historyId);
+            if (!item) return;
+
+            if (button.classList.contains('delete-history-btn')) {
+                deleteHistoryEntry(historyId);
+            } else if (button.classList.contains('edit-history-btn')) {
+                history.forEach(h => h.isEditing = false); // Only one editable at a time
+                item.isEditing = true;
+                applyReportFilters();
+            } else if (button.classList.contains('cancel-edit-history-btn')) {
+                item.isEditing = false;
+                applyReportFilters();
+            } else if (button.classList.contains('save-history-btn')) {
+                saveHistoryEdits(historyId);
+            }
+        }
+
         if (e.target.classList.contains('history-item-checkbox')) {
             updateDeleteSelectedButtonVisibility();
         }
@@ -1454,7 +1544,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderProductSelectionList(e.target.value);
     });
 
-    confirmAddProductsBtn.addEventListener('click', () => {
+    confirmAddProductsBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
         const stationId = parseInt(addProductsModal.dataset.stationId, 10);
         const station = stations.find(s => s.id === stationId);
         if (!station) return;
@@ -1525,7 +1618,8 @@ document.addEventListener('DOMContentLoaded', () => {
             totalProfit: timeCost, // For manual entry, profit equals time cost
             paymentMethod,
             products: [],
-            duration
+            duration,
+            isEditing: false
         };
         history.push(historyRecord);
 

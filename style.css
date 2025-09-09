@@ -722,6 +722,18 @@ body[data-theme="dark"] .stat-box, body[data-theme="ultra-dark"] .stat-box {
 .history-table th, .history-table td {
     padding: 12px 15px;
     border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+.history-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.history-table input[type="text"], .history-table input[type="number"] {
+    width: 100%;
+    padding: 6px;
+    font-size: 0.9em;
 }
 
 .history-table thead {
